@@ -1,0 +1,185 @@
+
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>przebudowa Mleczna Droga</title>
+  <link rel="manifest" href="/manifest.json">
+  <style>
+    @media print {
+      body * {
+        visibility: hidden;
+      }
+      .printing-active-modal, .printing-active-modal * {
+        visibility: visible !important;
+      }
+      .printing-active-modal {
+        position: absolute !important;
+        left: 0 !important;
+        top: 0 !important;
+        width: 100% !important;
+        height: 100% !important;
+        background: none !important;
+        display: block !important;
+        overflow: visible !important;
+      }
+      .printing-active-modal > div {
+        box-shadow: none !important;
+      }
+      .no-print {
+        display: none !important;
+      }
+
+      body.printing-single-section .section-to-print,
+      body.printing-single-section .section-to-print * {
+        visibility: visible;
+      }
+      body.printing-single-section .section-to-print {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+      }
+
+      #printable-history-report, #printable-history-report *,
+      #printable-psd-task-report, #printable-psd-task-report *,
+      #printable-demand-report, #printable-demand-report * {
+        visibility: visible;
+      }
+      #printable-history-report, #printable-psd-task-report, #printable-demand-report {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+      }
+    }
+
+    /* Elegant Scrollbar Styling */
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 10px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #94a3b8;
+    }
+    .dark ::-webkit-scrollbar-thumb {
+      background: #334155;
+    }
+    .dark ::-webkit-scrollbar-thumb:hover {
+      background: #475569;
+    }
+
+    /* Utility classes for specific components if needed */
+    .scrollbar-hide::-webkit-scrollbar {
+        display: none;
+    }
+    .scrollbar-hide {
+        -ms-overflow-style: none;
+        scrollbar-width: none;
+    }
+  </style>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            primary: {
+              50: '#eff6ff',
+              100: '#dbeafe',
+              200: '#bfdbfe',
+              300: '#93c5fd',
+              400: '#60a5fa',
+              500: '#3b82f6',
+              600: '#2563eb',
+              700: '#1d4ed8',
+              800: '#1e40af',
+              900: '#1e3a8a',
+              950: '#172554',
+            },
+            secondary: {
+              50: '#f8fafc',
+              100: '#f1f5f9',
+              200: '#e2e8f0',
+              300: '#cbd5e1',
+              400: '#94a3b8',
+              500: '#64748b',
+              600: '#475569',
+              700: '#334155',
+              800: '#1e293b',
+              900: '#0f172a',
+              950: '#020617',
+            }
+          },
+          keyframes: {
+            fadeIn: {
+              '0%': { opacity: '0' },
+              '100%': { opacity: '1' },
+            },
+            fadeOut: {
+              '0%': { opacity: '1' },
+              '100%': { opacity: '0', transform: 'translateY(-10px)' },
+            },
+            slideIn: {
+              '0%': { opacity: '0', transform: 'translateX(100%)' },
+              '100%': { opacity: '1', transform: 'translateX(0)' },
+            },
+            'flash-new': {
+                '0%, 100%': { backgroundColor: 'transparent' },
+                '50%': { backgroundColor: 'rgba(59, 130, 246, 0.15)' },
+            }
+          },
+          animation: {
+            fadeIn: 'fadeIn 0.5s ease-in-out',
+            fadeOut: 'fadeOut 0.3s ease-in-out forwards',
+            slideIn: 'slideIn 0.5s forwards cubic-bezier(0.25, 0.8, 0.25, 1)',
+            'flash-new': 'flash-new 1.5s ease-in-out',
+          }
+        },
+      },
+    }
+  </script>
+
+  <script type="importmap">
+{
+  "imports": {
+    "react-dom": "https://aistudiocdn.com/react-dom@^19.2.0",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
+    "react/": "https://aistudiocdn.com/react@^19.2.0/",
+    "react": "https://aistudiocdn.com/react@^19.2.0",
+    "@tanstack/react-virtual": "https://unpkg.com/@tanstack/react-virtual@3.5.0/dist/esm/index.js",
+    "@tanstack/virtual-core": "https://unpkg.com/@tanstack/virtual-core@3.5.0/dist/esm/index.js",
+    "zustand": "https://unpkg.com/zustand@4.5.2/esm/index.mjs",
+    "zustand/middleware": "https://unpkg.com/zustand@4.5.2/esm/middleware.mjs",
+    "@playwright/test": "https://aistudiocdn.com/@playwright/test@^1.57.0",
+    "@testing-library/jest-dom": "https://aistudiocdn.com/@testing-library/jest-dom@^6.9.1",
+    "@testing-library/react": "https://aistudiocdn.com/@testing-library/react@^16.3.0",
+    "@vitejs/plugin-react": "https://aistudiocdn.com/@vitejs/plugin-react@^5.1.1",
+    "vite": "https://aistudiocdn.com/vite@^7.2.6",
+    "body-parser": "https://esm.sh/body-parser@^2.2.1",
+    "express": "https://esm.sh/express@^5.2.1",
+    "net": "https://esm.sh/net@^1.0.2",
+    "https": "https://esm.sh/https@^1.0.0",
+    "fs": "https://esm.sh/fs@^0.0.1-security",
+    "@google/genai": "https://esm.sh/@google/genai@^1.33.0"
+  }
+}
+</script>
+  
+</head>
+<body class="bg-slate-100 dark:bg-secondary-900">
+  <noscript>You need to enable JavaScript to run this app.</noscript>
+  <div id="root"></div>
+  <script type="module" src="/index.tsx"></script>
+</body>
+</html>
