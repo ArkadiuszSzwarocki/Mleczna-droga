@@ -1,4 +1,5 @@
 
+
 import React, { ReactNode } from 'react';
 
 export interface PrinterDef {
@@ -477,6 +478,14 @@ export interface ProductionRun {
     events?: ProductionEvent[];
     samples?: LabSample[];
     suggestedTransferPallets?: string[];
+    // FIX: Added downtimes property to track production pauses and interruptions as used in the production contexts.
+    downtimes?: {
+        type: string;
+        startTime: string;
+        endTime: string;
+        durationMinutes: number;
+        description: string;
+    }[];
 }
 
 export interface AdjustmentOrder {
