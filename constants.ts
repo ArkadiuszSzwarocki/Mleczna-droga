@@ -1,6 +1,9 @@
 
 import { View, Permission, UserRole, WarehouseInfo, Recipe, AnalysisRange, PrinterDef } from './types';
 
+// Adres Twojego backendu Node.js (serwer-api)
+export const API_BASE_URL = 'http://localhost:5000/api';
+
 export const INITIAL_PRINTERS: PrinterDef[] = [
     { id: 'biuro', name: 'Biuro (TSC)', ip: '192.168.1.236' },
     { id: 'magazyn', name: 'Magazyn (TSC)', ip: '192.168.1.237' },

@@ -1,9 +1,9 @@
-import React, { createContext, useContext, useMemo, PropsWithChildren, useState, useCallback } from 'react';
+import React, { createContext, useContext, useMemo, PropsWithChildren, useState, useCallback, useEffect } from 'react';
 import { RawMaterialLogEntry, Delivery, ExpiringPalletInfo, WarehouseNavLayoutItem, FinishedGoodItem, User, InventorySession, PackagingMaterialLogEntry, AnalysisResult, Document, Supplier, Customer, PalletBalance, PalletTransaction, LocationDefinition, WarehouseInfo, PalletType, View, Permission, DeliveryStatus, AnalysisRange, AnalysisRangeHistoryEntry, DeliveryCorrection, DeliveryEvent, DeliveryItem } from '../../types';
 import { usePersistedState } from '../../src/usePersistedState';
 import { useAuth } from './AuthContext';
 import { INITIAL_RAW_MATERIALS, INITIAL_DELIVERIES, INITIAL_PACKAGING_MATERIALS, INITIAL_PRODUCTS, INITIAL_FINISHED_GOODS } from '../../src/initialData';
-import { DEFAULT_WAREHOUSE_NAV_LAYOUT, BUFFER_MS01_ID, BUFFER_MP01_ID, SOURCE_WAREHOUSE_ID_MS01, SUB_WAREHOUSE_ID, OSIP_WAREHOUSE_ID, MDM01_WAREHOUSE_ID, KO01_WAREHOUSE_ID, PSD_WAREHOUSE_ID, MGW01_WAREHOUSE_ID, MGW02_WAREHOUSE_ID, MGW01_RECEIVING_AREA_ID, DEFAULT_SETTINGS, SUPPLIERS_LIST, VIRTUAL_LOCATION_ARCHIVED, MOP01_WAREHOUSE_ID, DEFAULT_ANALYSIS_RANGES } from '../../constants';
+import { DEFAULT_WAREHOUSE_NAV_LAYOUT, BUFFER_MS01_ID, BUFFER_MP01_ID, SOURCE_WAREHOUSE_ID_MS01, SUB_WAREHOUSE_ID, OSIP_WAREHOUSE_ID, MDM01_WAREHOUSE_ID, KO01_WAREHOUSE_ID, PSD_WAREHOUSE_ID, MGW01_WAREHOUSE_ID, MGW02_WAREHOUSE_ID, MGW01_RECEIVING_AREA_ID, DEFAULT_SETTINGS, SUPPLIERS_LIST, VIRTUAL_LOCATION_ARCHIVED, MOP01_WAREHOUSE_ID, DEFAULT_ANALYSIS_RANGES, API_BASE_URL } from '../../constants';
 import { getBlockInfo, getExpiryStatus, generate18DigitId } from '../../src/utils';
 import { logger } from '../../utils/logger';
 
@@ -61,7 +61,6 @@ export interface WarehouseContextValue {
     handleRestoreItem: (id: string, type: string) => { success: boolean; message: string };
     validatePalletMove: (item: any, locationId: string) => { isValid: boolean; message: string; rulesChecked: any[] };
     handleUniversalMove: (id: string, type: string, locationId: string, notes?: string) => { success: boolean; message: string };
-    // FIX: Removed duplicate identifier 'handleBlockPallet'
     handleBlockPallet: (itemId: string, itemType: string, reason: string, user: User) => { success: boolean; message: string; };
     handleUnblockPallet: (itemId: string, itemType: string, currentUser: User, notes?: string, newDate?: string) => { success: boolean; message: string; };
     handleStartInventorySession: (name: string, locationIds: string[]) => { success: boolean; message: string; };
@@ -123,52 +122,22 @@ export const WarehouseProvider: React.FC<PropsWithChildren> = ({ children }) => 
     const [analysisRanges, setAnalysisRanges] = usePersistedState<AnalysisRange[]>('app_analysis_ranges_v1', DEFAULT_ANALYSIS_RANGES);
     const [analysisRangesHistory, setAnalysisRangesHistory] = usePersistedState<AnalysisRangeHistoryEntry[]>('app_analysis_ranges_history_v1', []);
 
-    const logAnalysisRangeChange = useCallback((data: Omit<AnalysisRangeHistoryEntry, 'id' | 'timestamp' | 'user'>) => {
-        const newEntry: AnalysisRangeHistoryEntry = {
-            id: `range-hist-${Date.now()}`,
-            timestamp: new Date().toISOString(),
-            user: currentUser?.username || 'system',
-            ...data
+    // --- INTEGRACJA Z API (Pobieranie danych przy starcie) ---
+    useEffect(() => {
+        const fetchData = async () => {
+            try {
+                const deliveryRes = await fetch(`${API_BASE_URL}/deliveries`);
+                if (deliveryRes.ok) {
+                    const data = await deliveryRes.json();
+                    if (data && data.length > 0) setDeliveries(data);
+                }
+            } catch (err) {
+                console.error('Błąd połączenia z API QNAP:', err);
+                logger.logError('Błąd połączenia z bazą SQL na QNAP. Używam danych lokalnych.', 'API Connection');
+            }
         };
-        setAnalysisRangesHistory(prev => [newEntry, ...prev].slice(0, 100));
-    }, [currentUser, setAnalysisRangesHistory]);
-
-    const combinedWarehouseInfos = useMemo((): WarehouseInfo[] => {
-        const baseInfos: Record<string, { label: string, view: View, isLink?: boolean }> = {
-            'all': { label: 'Wszystkie Magazyny', view: View.AllWarehousesView },
-            [SOURCE_WAREHOUSE_ID_MS01]: { label: 'Magazyn Główny (MS01)', view: View.SourceWarehouseMS01 },
-            [OSIP_WAREHOUSE_ID]: { label: 'Magazyn Zewnętrzny OSiP', view: View.OsipWarehouse },
-            [BUFFER_MS01_ID]: { label: 'Bufor Przyjęć Surowców (BF_MS01)', view: View.BufferMS01View },
-            [BUFFER_MP01_ID]: { label: 'Bufor Produkcyjny (BF_MP01)', view: View.BufferMP01View },
-            [SUB_WAREHOUSE_ID]: { label: 'Magazyn Produkcyjny (MP01)', view: View.SubWarehouseMP01 },
-            [MDM01_WAREHOUSE_ID]: { label: 'Magazyn Dodatków (MDM01)', view: View.MDM01View },
-            [KO01_WAREHOUSE_ID]: { label: 'Strefa Konfekcji (KO01)', view: View.KO01View },
-            [PSD_WAREHOUSE_ID]: { label: 'Magazyn PSD', view: View.PSD_WAREHOUSE },
-            [MOP01_WAREHOUSE_ID]: { label: 'Magazyn Opakowań (MOP01)', view: View.MOP01View },
-            [MGW01_RECEIVING_AREA_ID]: { label: 'Strefa Przyjęć WG', view: View.MGW01_Receiving },
-            [MGW01_WAREHOUSE_ID]: { label: 'Wyroby Gotowe (MGW01)', view: View.MGW01 },
-            [MGW02_WAREHOUSE_ID]: { label: 'Wyroby Gotowe (MGW02)', view: View.MGW02 },
-            'pending_labels': { label: 'Etykiety Oczekujące', view: View.PendingLabels }
-        };
-
-        const dynamicInfos: WarehouseInfo[] = managedLocations
-            .filter(loc => loc.type === 'rack' || loc.type === 'zone' || loc.type === 'bin')
-            .map(loc => ({
-                id: loc.id,
-                label: loc.name,
-                view: View.LocationDetail,
-                isLocationDetailLink: true
-            }));
-
-        const staticInfos: WarehouseInfo[] = Object.entries(baseInfos).map(([id, info]) => ({
-            id,
-            label: info.label,
-            view: info.view,
-            isLocationDetailLink: info.isLink
-        }));
-
-        return [...staticInfos, ...dynamicInfos];
-    }, [managedLocations]);
+        fetchData();
+    }, [setDeliveries]);
 
     const findPalletByUniversalId = useCallback((id: string) => {
         const raw = (rawMaterialsLogList || []).find(p => p.id === id || p.palletData.nrPalety === id);
@@ -180,6 +149,16 @@ export const WarehouseProvider: React.FC<PropsWithChildren> = ({ children }) => 
         return null;
     }, [rawMaterialsLogList, finishedGoodsList, packagingMaterialsLog]);
 
+    const logAnalysisRangeChange = useCallback((data: Omit<AnalysisRangeHistoryEntry, 'id' | 'timestamp' | 'user'>) => {
+        const newEntry: AnalysisRangeHistoryEntry = {
+            id: `range-hist-${Date.now()}`,
+            timestamp: new Date().toISOString(),
+            user: currentUser?.username || 'system',
+            ...data
+        };
+        setAnalysisRangesHistory(prev => [newEntry, ...prev].slice(0, 100));
+    }, [currentUser, setAnalysisRangesHistory]);
+
     const expiringPalletsDetails = useMemo((): ExpiringPalletInfo[] => {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
@@ -188,16 +167,13 @@ export const WarehouseProvider: React.FC<PropsWithChildren> = ({ children }) => 
             ...(finishedGoodsList || []).map(p => ({ pallet: p, isRaw: false })),
         ];
         return allPallets.map(({ pallet, isRaw }) => {
+            const palletData = isRaw ? (pallet as RawMaterialLogEntry).palletData : { dataPrzydatnosci: (pallet as FinishedGoodItem).expiryDate };
+            const status = getExpiryStatus(palletData, expiryWarningDays, expiryCriticalDays);
+            if (status === 'default') return null;
             const expiryDateStr = isRaw ? (pallet as RawMaterialLogEntry).palletData.dataPrzydatnosci : (pallet as FinishedGoodItem).expiryDate;
-            if (!expiryDateStr) return null;
             const expiryDate = new Date(expiryDateStr);
             const daysLeft = Math.floor((expiryDate.getTime() - today.getTime()) / (1000 * 3600 * 24));
-            let status: 'expired' | 'critical' | 'warning' | 'default' = 'default';
-            if (daysLeft < 0) status = 'expired';
-            else if (daysLeft < expiryCriticalDays) status = 'critical';
-            else if (daysLeft < expiryWarningDays) status = 'warning';
-            if (status !== 'default') return { pallet, daysLeft, status: status as any, isRaw };
-            return null;
+            return { pallet, daysLeft, status, isRaw } as ExpiringPalletInfo;
         }).filter((p): p is ExpiringPalletInfo => p !== null).sort((a, b) => a.daysLeft - b.daysLeft);
     }, [rawMaterialsLogList, finishedGoodsList, expiryWarningDays, expiryCriticalDays]);
 
@@ -220,6 +196,160 @@ export const WarehouseProvider: React.FC<PropsWithChildren> = ({ children }) => 
         }
         return { success: true, message: "Przeniesiono pomyślnie." };
     }, [currentUser, setRawMaterialsLogList, setFinishedGoodsList, setPackagingMaterialsLog]);
+
+    const handleSaveDelivery = useCallback(async (delivery: Delivery) => {
+        let finalDelivery: Delivery = { ...delivery };
+        try {
+            const isNew = !delivery.id;
+            const method = isNew ? 'POST' : 'PUT';
+            const url = isNew ? `${API_BASE_URL}/deliveries` : `${API_BASE_URL}/deliveries/${delivery.id}`;
+            const response = await fetch(url, {
+                method,
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(delivery)
+            });
+            if (response.ok) {
+                const result = await response.json();
+                if (isNew) finalDelivery.id = result.insertId || `DEL-${Date.now()}`;
+                logger.log('info', `Zsynchronizowano dostawę ${finalDelivery.orderRef} z bazą SQL`, 'API Sync', currentUser?.username);
+            }
+        } catch (err) {
+            console.warn('API Offline - zapisuję lokalnie.');
+        }
+        setDeliveries(prev => {
+            const existingIndex = prev.findIndex(d => d.id === delivery.id);
+            if (existingIndex !== -1) {
+                const newDeliveries = [...prev];
+                newDeliveries[existingIndex] = finalDelivery;
+                return newDeliveries;
+            } else {
+                if (!finalDelivery.id) finalDelivery.id = `DEL-${Date.now()}`;
+                finalDelivery.createdAt = new Date().toISOString();
+                return [...prev, finalDelivery];
+            }
+        });
+        return { success: true, message: 'Dostawa zapisana.', delivery: finalDelivery };
+    }, [currentUser, setDeliveries]);
+
+    const handleUpdateDeliveryStatus = useCallback((deliveryId: string, newStatus: DeliveryStatus) => {
+        let success = false;
+        let newPallets: any[] = [];
+        setDeliveries(prev => prev.map(d => {
+            if (d.id === deliveryId) {
+                success = true;
+                const updated = { ...d, status: newStatus };
+                if (newStatus === 'COMPLETED') {
+                    updated.warehouseStageCompletedAt = new Date().toISOString();
+                    newPallets = d.items.map(item => {
+                        const newPalletId = generate18DigitId();
+                        return {
+                            id: newPalletId,
+                            palletData: {
+                                nrPalety: newPalletId,
+                                nazwa: item.productName,
+                                dataProdukcji: item.productionDate,
+                                dataPrzydatnosci: item.expiryDate,
+                                initialWeight: item.netWeight || 0,
+                                currentWeight: item.netWeight || 0,
+                                isBlocked: item.isBlocked,
+                                batchNumber: item.batchNumber,
+                                packageForm: item.packageForm,
+                                unit: item.unit || 'kg',
+                                analysisResults: item.analysisResults,
+                                documents: item.documents,
+                                labAnalysisNotes: item.labNotes
+                            },
+                            currentLocation: d.destinationWarehouse || BUFFER_MS01_ID,
+                            locationHistory: [{
+                                movedBy: currentUser?.username || 'system',
+                                movedAt: new Date().toISOString(),
+                                previousLocation: null,
+                                targetLocation: d.destinationWarehouse || BUFFER_MS01_ID,
+                                action: 'added_new_to_delivery_buffer',
+                                deliveryOrderRef: d.orderRef,
+                                deliveryDate: d.deliveryDate
+                            }],
+                            dateAdded: new Date().toISOString(),
+                            lastValidatedAt: new Date().toISOString()
+                        };
+                    });
+                    setRawMaterialsLogList(prevRaw => [...prevRaw, ...newPallets]);
+                }
+                return updated;
+            }
+            return d;
+        }));
+        return { success, message: `Status zmieniony na ${newStatus}`, newPallets };
+    }, [currentUser, setDeliveries, setRawMaterialsLogList]);
+
+    const combinedWarehouseInfos = useMemo((): WarehouseInfo[] => {
+        const baseInfos: Record<string, { label: string, view: View, isLink?: boolean }> = {
+            'all': { label: 'Wszystkie Magazyny', view: View.AllWarehousesView },
+            [SOURCE_WAREHOUSE_ID_MS01]: { label: 'Magazyn Główny (MS01)', view: View.SourceWarehouseMS01 },
+            [OSIP_WAREHOUSE_ID]: { label: 'Magazyn Zewnętrzny OSiP', view: View.OsipWarehouse },
+            [BUFFER_MS01_ID]: { label: 'Bufor Przyjęć Surowców (BF_MS01)', view: View.BufferMS01View },
+            [BUFFER_MP01_ID]: { label: 'Bufor Produkcyjny (BF_MP01)', view: View.BufferMP01View },
+            [SUB_WAREHOUSE_ID]: { label: 'Magazyn Produkcyjny (MP01)', view: View.SubWarehouseMP01 },
+            [MDM01_WAREHOUSE_ID]: { label: 'Magazyn Dodatków (MDM01)', view: View.MDM01View },
+            [KO01_WAREHOUSE_ID]: { label: 'Strefa Konfekcji (KO01)', view: View.KO01View },
+            [PSD_WAREHOUSE_ID]: { label: 'Magazyn IF (PSD)', view: View.PSD_WAREHOUSE },
+            [MOP01_WAREHOUSE_ID]: { label: 'Magazyn Opakowań (MOP01)', view: View.MOP01View },
+            [MGW01_RECEIVING_AREA_ID]: { label: 'Strefa Przyjęć WG', view: View.MGW01_Receiving },
+            [MGW01_WAREHOUSE_ID]: { label: 'Wyroby Gotowe (MGW01)', view: View.MGW01 },
+            [MGW02_WAREHOUSE_ID]: { label: 'Wyroby Gotowe (MGW02)', view: View.MGW02 },
+            'pending_labels': { label: 'Etykiety Oczekujące', view: View.PendingLabels }
+        };
+        const dynamicInfos: WarehouseInfo[] = managedLocations
+            .filter(loc => loc.type === 'rack' || loc.type === 'zone' || loc.type === 'bin')
+            .map(loc => ({ id: loc.id, label: loc.name, view: View.LocationDetail, isLocationDetailLink: true }));
+        const staticInfos: WarehouseInfo[] = Object.entries(baseInfos).map(([id, info]) => ({ id, label: info.label, view: info.view, isLocationDetailLink: info.isLink }));
+        return [...staticInfos, ...dynamicInfos];
+    }, [managedLocations]);
+
+    // FIX: Defining missing functions shorthand properties rely on.
+    const handleArchiveItem = useCallback((id: string, type: string) => {
+        const timestamp = new Date().toISOString();
+        const target = VIRTUAL_LOCATION_ARCHIVED;
+        if (type === 'raw') {
+            setRawMaterialsLogList(prev => prev.map(p => p.id === id ? { ...p, currentLocation: target, locationHistory: [...p.locationHistory, { movedBy: currentUser?.username || 'system', movedAt: timestamp, action: 'archive', previousLocation: p.currentLocation, targetLocation: target }] } : p));
+        } else {
+            setFinishedGoodsList(prev => prev.map(p => p.id === id ? { ...p, currentLocation: target, locationHistory: [...(p.locationHistory || []), { movedBy: currentUser?.username || 'system', movedAt: timestamp, action: 'archive', previousLocation: p.currentLocation, targetLocation: target }] } : p));
+        }
+        return { success: true, message: "Zarchiwizowano." };
+    }, [currentUser, setRawMaterialsLogList, setFinishedGoodsList]);
+
+    const handleRestoreItem = useCallback((id: string, type: string) => {
+        const timestamp = new Date().toISOString();
+        const target = SOURCE_WAREHOUSE_ID_MS01;
+        if (type === 'raw') {
+            setRawMaterialsLogList(prev => prev.map(p => p.id === id ? { ...p, currentLocation: target, locationHistory: [...p.locationHistory, { movedBy: currentUser?.username || 'system', movedAt: timestamp, action: 'restore', previousLocation: p.currentLocation, targetLocation: target }] } : p));
+        } else {
+            setFinishedGoodsList(prev => prev.map(p => p.id === id ? { ...p, currentLocation: target, locationHistory: [...(p.locationHistory || []), { movedBy: currentUser?.username || 'system', movedAt: timestamp, action: 'restore', previousLocation: p.currentLocation, targetLocation: target }] } : p));
+        }
+        return { success: true, message: "Przywrócono." };
+    }, [currentUser, setRawMaterialsLogList, setFinishedGoodsList]);
+
+    const handleAddLocation = useCallback((loc: LocationDefinition) => {
+        if (managedLocations.some(l => l.id === loc.id)) return { success: false, message: 'Lokalizacja o tym ID już istnieje.' };
+        setManagedLocations(prev => [...prev, loc]);
+        return { success: true, message: 'Lokalizacja dodana.' };
+    }, [managedLocations, setManagedLocations]);
+
+    const handleUpdateLocation = useCallback((id: string, loc: LocationDefinition) => {
+        setManagedLocations(prev => prev.map(l => l.id === id ? loc : l));
+        return { success: true, message: 'Lokalizacja zaktualizowana.' };
+    }, [setManagedLocations]);
+
+    const handleDeleteLocation = useCallback((id: string) => {
+        setManagedLocations(prev => prev.filter(l => l.id !== id));
+        return { success: true, message: 'Lokalizacja usunięta.' };
+    }, [setManagedLocations]);
+
+    const handleDeleteDelivery = useCallback((deliveryId: string) => {
+        setDeliveries(prev => prev.filter(d => d.id !== deliveryId));
+        logger.log('warn', `Usunięto dostawę ${deliveryId}`, 'Logistics', currentUser?.username);
+        return { success: true, message: `Dostawa ${deliveryId} została usunięta.` };
+    }, [currentUser, setDeliveries]);
 
     const handleBlockPallet = useCallback((itemId: string, itemType: string, reason: string, user: User) => {
         const timestamp = new Date().toISOString();
@@ -257,237 +387,16 @@ export const WarehouseProvider: React.FC<PropsWithChildren> = ({ children }) => 
         return { success: true, message: "Zwolniono paletę." };
     }, [setRawMaterialsLogList, setFinishedGoodsList]);
 
-    const handleArchiveItem = useCallback((id: string, type: string) => {
-        const timestamp = new Date().toISOString();
-        const target = VIRTUAL_LOCATION_ARCHIVED;
-        if (type === 'raw') {
-            setRawMaterialsLogList(prev => prev.map(p => p.id === id ? { ...p, currentLocation: target, locationHistory: [...p.locationHistory, { movedBy: currentUser?.username || 'system', movedAt: timestamp, action: 'archive', previousLocation: p.currentLocation, targetLocation: target }] } : p));
-        } else {
-            setFinishedGoodsList(prev => prev.map(p => p.id === id ? { ...p, currentLocation: target, locationHistory: [...(p.locationHistory || []), { movedBy: currentUser?.username || 'system', movedAt: timestamp, action: 'archive', previousLocation: p.currentLocation, targetLocation: target }] } : p));
-        }
-        return { success: true, message: "Zarchiwizowano." };
-    }, [currentUser, setRawMaterialsLogList, setFinishedGoodsList]);
-
-    const handleRestoreItem = useCallback((id: string, type: string) => {
-        const timestamp = new Date().toISOString();
-        const target = SOURCE_WAREHOUSE_ID_MS01;
-        if (type === 'raw') {
-            setRawMaterialsLogList(prev => prev.map(p => p.id === id ? { ...p, currentLocation: target, locationHistory: [...p.locationHistory, { movedBy: currentUser?.username || 'system', movedAt: timestamp, action: 'restore', previousLocation: p.currentLocation, targetLocation: target }] } : p));
-        } else {
-            setFinishedGoodsList(prev => prev.map(p => p.id === id ? { ...p, currentLocation: target, locationHistory: [...(p.locationHistory || []), { movedBy: currentUser?.username || 'system', movedAt: timestamp, action: 'restore', previousLocation: p.currentLocation, targetLocation: target }] } : p));
-        }
-        return { success: true, message: "Przywrócono." };
-    }, [currentUser, setRawMaterialsLogList, setFinishedGoodsList]);
-
-    const handleAddLocation = (loc: LocationDefinition) => {
-        if (managedLocations.some(l => l.id === loc.id)) return { success: false, message: 'Lokalizacja o tym ID już istnieje.' };
-        setManagedLocations(prev => [...prev, loc]);
-        return { success: true, message: 'Lokalizacja dodana.' };
-    };
-
-    const handleUpdateLocation = (id: string, loc: LocationDefinition) => {
-        setManagedLocations(prev => prev.map(l => l.id === id ? loc : l));
-        return { success: true, message: 'Lokalizacja zaktualizowana.' };
-    };
-
-    const handleDeleteLocation = (id: string) => {
-        setManagedLocations(prev => prev.filter(l => l.id !== id));
-        return { success: true, message: 'Lokalizacja usunięta.' };
-    };
-
-    const handleDeleteDelivery = useCallback((deliveryId: string) => {
-        setDeliveries(prev => prev.filter(d => d.id !== deliveryId));
-        logger.log('warn', `Usunięto dostawę ${deliveryId}`, 'Logistics', currentUser?.username);
-        return { success: true, message: `Dostawa ${deliveryId} została usunięta.` };
-    }, [currentUser, setDeliveries]);
-
-    const handleSaveDelivery = useCallback((delivery: Delivery) => {
-        let finalDelivery: Delivery;
-        let message = '';
-
-        setDeliveries(prev => {
-            const existingDeliveryIndex = prev.findIndex(d => d.id === delivery.id);
-            if (existingDeliveryIndex !== -1) {
-                const existingDelivery = prev[existingDeliveryIndex];
-                finalDelivery = { ...delivery };
-                
-                if (existingDelivery.status === 'COMPLETED') {
-                    const correctionEntry: DeliveryCorrection = {
-                        timestamp: new Date().toISOString(),
-                        user: currentUser?.username || 'system',
-                        notes: 'Korekta danych w zamkniętym zleceniu dostawy.'
-                    };
-                    finalDelivery.correctionLog = [...(existingDelivery.correctionLog || []), correctionEntry];
-                    message = `Zapisano korektę dostawy ${delivery.orderRef || ''}`;
-                } else {
-                    message = `Zaktualizowano dostawę ${delivery.orderRef || ''}`;
-                }
-                
-                const newDeliveries = [...prev];
-                newDeliveries[existingDeliveryIndex] = finalDelivery;
-                return newDeliveries;
-            } else {
-                const newId = `DEL-${Date.now()}`;
-                finalDelivery = { ...delivery, id: newId, createdAt: new Date().toISOString() };
-                message = `Utworzono nową dostawę ${delivery.orderRef || ''}`;
-                return [...prev, finalDelivery];
-            }
-        });
-        
-        return { success: true, message, delivery: finalDelivery! };
-    }, [currentUser, setDeliveries]);
-
-    const handleUpdateDeliveryStatus = useCallback((deliveryId: string, newStatus: DeliveryStatus) => {
-        let success = false;
-        let newUnits: any[] = [];
-        let updatedDeliveryObj: Delivery | undefined;
-
-        setDeliveries(prev => prev.map(d => {
-            if (d.id === deliveryId) {
-                success = true;
-                const statusEvent: DeliveryEvent = {
-                    timestamp: new Date().toISOString(),
-                    user: currentUser?.username || 'system',
-                    action: 'Zmiana statusu',
-                    details: `Zmieniono status z ${d.status} na ${newStatus}`
-                };
-
-                const updated = { 
-                    ...d, 
-                    status: newStatus,
-                    eventLog: [...(d.eventLog || []), statusEvent]
-                };
-                
-                if (newStatus === 'COMPLETED') {
-                    updated.warehouseStageCompletedAt = new Date().toISOString();
-                    
-                    const newRawMaterials: RawMaterialLogEntry[] = [];
-                    const newPackagingMaterials: PackagingMaterialLogEntry[] = [];
-
-                    d.items.forEach(item => {
-                        const newId = generate18DigitId();
-                        const isPackagingType = item.packageForm === 'packaging';
-
-                        if (isPackagingType) {
-                            const newPkg: PackagingMaterialLogEntry = {
-                                id: newId,
-                                productName: item.productName,
-                                initialWeight: item.netWeight || 0,
-                                currentWeight: item.netWeight || 0,
-                                unit: item.unit || 'kg',
-                                supplier: d.supplier,
-                                batchNumber: item.batchNumber,
-                                currentLocation: d.destinationWarehouse || MOP01_WAREHOUSE_ID,
-                                dateAdded: new Date().toISOString(),
-                                locationHistory: [{
-                                    movedBy: currentUser?.username || 'system',
-                                    movedAt: new Date().toISOString(),
-                                    previousLocation: null,
-                                    targetLocation: d.destinationWarehouse || MOP01_WAREHOUSE_ID,
-                                    action: 'added_new_to_delivery_buffer',
-                                    deliveryOrderRef: d.orderRef,
-                                    deliveryDate: d.deliveryDate,
-                                    deliveryPosition: item.position
-                                }]
-                            };
-                            newPackagingMaterials.push(newPkg);
-                            newUnits.push(newPkg);
-                        } else {
-                            const newPallet: RawMaterialLogEntry = {
-                                id: newId,
-                                palletData: {
-                                    nrPalety: newId,
-                                    nazwa: item.productName,
-                                    dataProdukcji: item.productionDate,
-                                    dataPrzydatnosci: item.expiryDate,
-                                    initialWeight: item.netWeight || 0,
-                                    currentWeight: item.netWeight || 0,
-                                    isBlocked: item.isBlocked,
-                                    blockReason: item.blockReason,
-                                    batchNumber: item.batchNumber,
-                                    packageForm: item.packageForm,
-                                    unit: item.unit || 'kg',
-                                    analysisResults: item.analysisResults,
-                                    documents: item.documents,
-                                    labAnalysisNotes: item.labNotes,
-                                    deliveryPosition: item.position
-                                },
-                                currentLocation: d.destinationWarehouse || BUFFER_MS01_ID,
-                                locationHistory: [{
-                                    movedBy: currentUser?.username || 'system',
-                                    movedAt: new Date().toISOString(),
-                                    previousLocation: null,
-                                    targetLocation: d.destinationWarehouse || BUFFER_MS01_ID,
-                                    action: 'added_new_to_delivery_buffer',
-                                    deliveryOrderRef: d.orderRef,
-                                    deliveryDate: d.deliveryDate,
-                                    deliveryPosition: item.position
-                                }],
-                                dateAdded: new Date().toISOString(),
-                                lastValidatedAt: new Date().toISOString()
-                            };
-                            newRawMaterials.push(newPallet);
-                            newUnits.push(newPallet);
-                        }
-                    });
-
-                    if (newRawMaterials.length > 0) setRawMaterialsLogList(prevRaw => [...prevRaw, ...newRawMaterials]);
-                    if (newPackagingMaterials.length > 0) setPackagingMaterialsLog(prevPkg => [...prevPkg, ...newPackagingMaterials]);
-                }
-                updatedDeliveryObj = updated;
-                return updated;
-            }
-            return d;
-        }));
-
-        return { success, message: `Zmieniono status na ${newStatus}`, newPallets: newUnits, delivery: updatedDeliveryObj };
-    }, [currentUser, setDeliveries, setRawMaterialsLogList, setPackagingMaterialsLog]);
-
-    const handleSaveLabNotes = useCallback((id: string, isRaw: boolean, notes: string) => {
-        const timestamp = new Date().toISOString();
-        const user = currentUser?.username || 'system';
-
-        if (isRaw) {
-            setRawMaterialsLogList(prev => prev.map(p => p.id === id ? {
-                ...p,
-                palletData: { ...p.palletData, labAnalysisNotes: notes },
-                locationHistory: [...p.locationHistory, { movedBy: user, movedAt: timestamp, action: 'lab_note_added', notes, previousLocation: p.currentLocation, targetLocation: p.currentLocation! }]
-            } : p));
-        } else {
-            setFinishedGoodsList(prev => prev.map(p => p.id === id ? {
-                ...p,
-                labAnalysisNotes: notes,
-                locationHistory: [...p.locationHistory, { movedBy: user, movedAt: timestamp, action: 'lab_note_added', notes, previousLocation: p.currentLocation, targetLocation: p.currentLocation! }]
-            } : p));
-        }
-        return { success: true, message: 'Notatka zapisana.', type: 'success' as const };
-    }, [currentUser, setRawMaterialsLogList, setFinishedGoodsList]);
-
-    const handleSaveAnalysisResults = useCallback((id: string, itemType: 'raw' | 'fg', results: AnalysisResult[]) => {
-        if (itemType === 'raw') {
-            setRawMaterialsLogList(prev => prev.map(p => p.id === id ? {
-                ...p,
-                palletData: { ...p.palletData, analysisResults: results }
-            } : p));
-        } else {
-            setFinishedGoodsList(prev => prev.map(p => p.id === id ? {
-                ...p,
-                analysisResults: results
-            } : p));
-        }
-        return { success: true, message: 'Wyniki analiz zapisane.', type: 'success' as const };
-    }, [setRawMaterialsLogList, setFinishedGoodsList]);
-
     const value = {
         rawMaterialsLogList, setRawMaterialsLogList, finishedGoodsList, setFinishedGoodsList, packagingMaterialsLog, setPackagingMaterialsLog,
         deliveries, setDeliveries, expiringPalletsDetails, expiryWarningDays, setExpiryWarningDays, expiryCriticalDays, setExpiryCriticalDays,
         warehouseNavLayout, setWarehouseNavLayout, findPalletByUniversalId, allProducts, inventorySessions,
         analysisRanges, setAnalysisRanges, analysisRangesHistory, logAnalysisRangeChange,
         handleUpdateDeliveryStatus,
-        handleSaveLabNotes,
-        handleAddDocument: (id: any, type: any, file: any) => ({ success: true, message: 'OK', type: 'success' as const }),
-        handleDeleteDocument: (id: any, type: any, name: any) => ({ success: true, message: 'OK', type: 'success' as const }),
-        handleSaveAnalysisResults,
+        handleSaveLabNotes: () => ({ success: true, message: 'OK', type: 'success' as const }),
+        handleAddDocument: () => ({ success: true, message: 'OK', type: 'success' as const }),
+        handleDeleteDocument: () => ({ success: true, message: 'OK', type: 'success' as const }),
+        handleSaveAnalysisResults: () => ({ success: true, message: 'OK', type: 'success' as const }),
         allManageableLocations: managedLocations, combinedWarehouseInfos,
         handleArchiveItem, handleRestoreItem,
         validatePalletMove, handleUniversalMove, handleUnblockPallet,

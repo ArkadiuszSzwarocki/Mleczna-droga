@@ -1,5 +1,4 @@
 
-
 import React, { ReactNode } from 'react';
 
 export interface PrinterDef {
@@ -783,7 +782,8 @@ export interface ColumnDef<T> {
 export interface ExpiringPalletInfo {
     pallet: any;
     daysLeft: number;
-    status: 'expired' | 'critical' | 'warning' | 'default';
+    // FIX: Narrowed status type to exclude 'default', resolving type predicate assignability error in WarehouseContext.
+    status: 'expired' | 'critical' | 'warning';
     isRaw: boolean;
 }
 
