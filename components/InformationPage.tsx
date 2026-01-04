@@ -9,7 +9,6 @@ import { useUIContext } from './contexts/UIContext';
 import { useAuth } from './contexts/AuthContext';
 import { View } from '../types';
 import { CHANGELOG_DATA } from '../constants';
-import { usePersistedState } from '../src/usePersistedState';
 import PencilIcon from './icons/PencilIcon';
 import CheckCircleIcon from './icons/CheckCircleIcon';
 import XCircleIcon from './icons/XCircleIcon';
@@ -44,22 +43,14 @@ const InformationPage: React.FC = () => {
     const { currentUser } = useAuth();
     
     // State for persistent data
-    const [systemInfo, setSystemInfo] = usePersistedState<SystemInfoData>('app_system_info_v1', DEFAULT_SYSTEM_INFO);
+    const [systemInfo, setSystemInfo] = useState<SystemInfoData>(DEFAULT_SYSTEM_INFO);
     
     // Local state for editing
     const [isEditing, setIsEditing] = useState(false);
     const [editForm, setEditForm] = useState<SystemInfoData>(systemInfo);
 
     const latestVersion = CHANGELOG_DATA[0];
-    const storageUsage = useMemo(() => {
-        let total = 0;
-        for (let x in localStorage) {
-            if (localStorage.hasOwnProperty(x)) {
-                total += ((localStorage[x].length + x.length) * 2);
-            }
-        }
-        return (total / 1024).toFixed(2) + " KB";
-    }, []);
+    const storageUsage = "0.00 KB"; // localStorage nie jest używany
 
     const canEdit = currentUser?.role === 'admin' || currentUser?.role === 'boss';
 

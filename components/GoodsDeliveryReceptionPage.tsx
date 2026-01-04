@@ -494,10 +494,10 @@ export const GoodsDeliveryReceptionPage: React.FC = () => {
         });
     };
 
-    const executeStepConfirmation = () => {
+    const executeStepConfirmation = async () => {
         if (!delivery) return;
         
-        const saveResult = handleSaveDelivery(delivery);
+        const saveResult = await handleSaveDelivery(delivery);
         if (!saveResult.success || !saveResult.delivery) {
             showToast('Błąd podczas zapisywania dostawy.', 'error');
             return;
@@ -505,7 +505,7 @@ export const GoodsDeliveryReceptionPage: React.FC = () => {
 
         const savedId = saveResult.delivery.id;
 
-        modalHandlers.openDeliverySummaryConfirmModal(saveResult.delivery, () => {
+        modalHandlers.openDeliverySummaryConfirmModal(saveResult.delivery, async () => {
             let nextStatus: DeliveryStatus = delivery.status;
             
             if (delivery.status === 'REGISTRATION') {
@@ -521,25 +521,28 @@ export const GoodsDeliveryReceptionPage: React.FC = () => {
             }
 
             if (nextStatus === 'COMPLETED') {
-                const result = handleUpdateDeliveryStatus(savedId, 'COMPLETED');
+                const result = await handleUpdateDeliveryStatus(savedId, 'COMPLETED');
                 if (result.success) {
                     showToast(result.message, 'success');
-                    if (result.newPallets) {
+                    if (result.newPallets && result.newPallets.length > 0) {
+                        // Otwórz okno drukowania etykiet dla wygenerowanych palet
                         modalHandlers.openNetworkPrintModal({ 
                             type: 'raw_material_batch', 
                             data: result.newPallets,
                             onSuccess: () => {
-                                // Powrót na główną listę po udanym druku (opcjonalnie dodatkowe zabezpieczenie)
+                                // Po udanym druku wróć do listy przyjęć
                                 handleSetView(View.DeliveryList);
                             }
                         });
-                        // KLUCZOWA POPRAWKA: Przejdź do listy od razu po zatwierdzeniu statusu, okno druku zostanie na wierzchu
-                        handleSetView(View.DeliveryList);
                     } else {
+                        // Jeśli nie ma palet do druku, wróć od razu
                         handleSetView(View.DeliveryList);
                     }
+                } else {
+                    showToast(result.message || 'Błąd podczas finalizacji dostawy', 'error');
                 }
             } else {
+                // Dla statusów innych niż COMPLETED - zapisz zmianę statusu i wróć do listy
                 handleSaveDelivery({ ...saveResult.delivery, status: nextStatus });
                 showToast(`Zlecenie przekazane do etapu: ${nextStatus}`, 'success');
                 handleSetView(View.DeliveryList);
@@ -773,18 +776,18 @@ export const GoodsDeliveryReceptionPage: React.FC = () => {
                                                 <button onClick={() => handleItemChange(item.id, 'isBlocked', false)} disabled={!canEditLabInfo} className={`px-4 py-1.5 text-[10px] font-black uppercase rounded-lg transition-all flex items-center gap-1.5 ${!item.isBlocked ? 'bg-green-600 text-white shadow-lg scale-105' : 'text-gray-400 hover:text-green-500'}`}><ShieldCheckIcon className="h-3.5 w-3.5" />Zwolniona</button>
                                             </div>
                                         </div>
-                                        <div className="space-y-4 mb-4 bg-white/60 dark:bg-black/10 p-4 rounded-xl border border-yellow-200 dark:border-yellow-800/30">
-                                            <h5 className="text-[10px] font-black text-yellow-700 dark:text-yellow-500 uppercase tracking-widest mb-2">Pomiary i Analizy Parametryczne</h5>
+                                        <div className="space-y-4 mb-4 bg-white/90 dark:bg-gray-800/90 p-4 rounded-xl border border-yellow-200 dark:border-gray-600">
+                                            <h5 className="text-[10px] font-black text-yellow-700 dark:text-gray-200 uppercase tracking-widest mb-2">Pomiary i Analizy Parametryczne</h5>
                                             {(item.analysisResults || []).length > 0 ? (
                                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                                     {(item.analysisResults || []).map((res, resIdx) => {
                                                         const verification = getResultVerification(res.name, res.value);
                                                         const isNok = verification.status === 'nok';
                                                         return (
-                                                            <div key={resIdx} className={`p-3 rounded-xl border-2 transition-all ${isNok ? 'bg-red-50 border-red-500 shadow-sm' : 'bg-slate-50 dark:bg-secondary-900 border-transparent'}`}>
+                                                            <div key={resIdx} className={`p-3 rounded-xl border-2 transition-all ${isNok ? 'bg-red-50 dark:bg-red-900/20 border-red-500 shadow-sm' : 'bg-slate-50 dark:bg-gray-700 border-transparent dark:border-gray-600'}`}>
                                                                 <div className="grid grid-cols-1 md:grid-cols-[2fr_1fr_1fr_auto] gap-4 items-end">
                                                                    <Select label={resIdx === 0 ? "Parametr" : ""} options={analysisOptions} value={res.name} onChange={e => handleResultChange(item.id, resIdx, 'name', e.target.value)} disabled={!canEditLabInfo} className="text-xs" />
-                                                                   <Input label={resIdx === 0 ? "Wynik" : ""} value={res.value} onChange={e => handleResultChange(item.id, resIdx, 'value', e.target.value)} disabled={!canEditLabInfo} className={`text-center font-bold ${isNok ? 'text-red-700' : 'text-gray-900'}`} />
+                                                                   <Input label={resIdx === 0 ? "Wynik" : ""} value={res.value} onChange={e => handleResultChange(item.id, resIdx, 'value', e.target.value)} disabled={!canEditLabInfo} className={`text-center font-bold ${isNok ? 'text-red-700 dark:text-red-400' : 'text-gray-900 dark:text-gray-100'}`} />
                                                                    <Input label={resIdx === 0 ? "Jedn." : ""} value={res.unit} disabled className="text-center bg-transparent border-none font-bold" />
                                                                    <button onClick={() => handleRemoveResultRow(item.id, resIdx)} disabled={!canEditLabInfo} className="p-2 text-red-500 hover:bg-red-50 rounded-full mb-0.5"><TrashIcon className="h-4 w-4"/></button>
                                                                 </div>
@@ -794,12 +797,12 @@ export const GoodsDeliveryReceptionPage: React.FC = () => {
                                                     })}
                                                 </div>
                                             ) : (
-                                                <p className="text-xs text-gray-400 italic text-center py-4">Brak wprowadzonych badań laboratoryjnych.</p>
+                                                <p className="text-xs text-gray-400 dark:text-gray-500 italic text-center py-4">Brak wprowadzonych badań laboratoryjnych.</p>
                                             )}
-                                            {canLabEdit && <Button onClick={() => handleAddResultRow(item.id)} variant="secondary" className="text-[10px] py-2 px-4 mt-2 bg-white shadow-sm border-yellow-200" leftIcon={<PlusIcon className="h-3 w-3"/>}>Dodaj Parametr Analizy</Button>}
+                                            {canLabEdit && <Button onClick={() => handleAddResultRow(item.id)} variant="secondary" className="text-[10px] py-2 px-4 mt-2 bg-white dark:bg-gray-700 shadow-sm border-yellow-200 dark:border-gray-600" leftIcon={<PlusIcon className="h-3 w-3"/>}>Dodaj Parametr Analizy</Button>}
                                         </div>
                                         <div className="space-y-4">
-                                            <Textarea label="Uwagi i Komentarze Laboratoryjne" value={item.labNotes || ''} onChange={e => handleItemChange(item.id, 'labNotes', e.target.value)} disabled={!canEditLabInfo} placeholder="Wprowadź szczegółowe uwagi jakościowe..." className="text-sm" />
+                                            <Textarea label="Uwagi i Komentarze Laboratoryjne" value={item.labNotes || ''} onChange={e => handleItemChange(item.id, 'labNotes', e.target.value)} disabled={!canEditLabInfo} placeholder="Wprowadź szczegółowe uwagi jakościowe..." className="text-sm dark:bg-gray-700 dark:text-gray-100 dark:border-gray-600" />
                                             <div className="flex justify-end">
                                                  <Button onClick={() => modalHandlers.openManageLabDocumentsModal(item)} variant="secondary" className="text-xs font-black uppercase tracking-widest bg-white border-yellow-300" disabled={!canEditLabInfo} leftIcon={<DocumentTextIcon className="h-4 w-4"/>}>Załącz Dokumenty Analiz</Button>
                                             </div>

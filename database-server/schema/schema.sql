@@ -1,0 +1,78 @@
+-- Schema dla bazy danych Mleczna Droga
+-- Host: filipinka.myqnapcloud.com:3307
+-- Baza: MleczDroga
+
+-- =====================================================
+-- Tabela dostaw (Deliveries)
+-- =====================================================
+CREATE TABLE IF NOT EXISTS deliveries (
+    id VARCHAR(50) PRIMARY KEY COMMENT 'Unikalny identyfikator dostawy',
+    orderRef VARCHAR(100) COMMENT 'Numer zamówienia',
+    supplier VARCHAR(100) COMMENT 'Dostawca',
+    deliveryDate DATE COMMENT 'Data dostawy',
+    status VARCHAR(50) COMMENT 'Status dostawy (pending, received, processed, etc)',
+    items JSON COMMENT 'Szczegóły towarów w JSON',
+    createdBy VARCHAR(50) COMMENT 'Użytkownik, który utworzył dostawę',
+    createdAt DATETIME COMMENT 'Data i czas utworzenia rekordu',
+    requiresLab TINYINT(1) DEFAULT 0 COMMENT 'Czy wymaga badań laboratoryjnych',
+    warehouseStageCompletedAt DATETIME COMMENT 'Data i czas ukończenia etapu magazynu',
+    INDEX idx_status (status),
+    INDEX idx_createdAt (createdAt),
+    INDEX idx_supplier (supplier)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- =====================================================
+-- Tabela logów systemowych
+-- =====================================================
+CREATE TABLE IF NOT EXISTS system_logs (
+    id INT AUTO_INCREMENT PRIMARY KEY COMMENT 'Unikalny identyfikator loga',
+    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Data i czas zdarzenia',
+    level VARCHAR(20) COMMENT 'Poziom logowania (INFO, WARNING, ERROR, DEBUG)',
+    message TEXT COMMENT 'Wiadomość logowania',
+    context VARCHAR(100) COMMENT 'Kontekst (moduł, funkcja)',
+    user VARCHAR(50) COMMENT 'Użytkownik, który spowodował zdarzenie',
+    INDEX idx_timestamp (timestamp),
+    INDEX idx_level (level),
+    INDEX idx_user (user)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- =====================================================
+-- Tabela użytkowników
+-- =====================================================
+CREATE TABLE IF NOT EXISTS users (
+    id VARCHAR(50) PRIMARY KEY COMMENT 'Unikalny identyfikator użytkownika',
+    username VARCHAR(50) UNIQUE NOT NULL COMMENT 'Nazwa użytkownika',
+    email VARCHAR(100) UNIQUE COMMENT 'Adres email',
+    role VARCHAR(50) COMMENT 'Rola użytkownika (admin, operator, viewer)',
+    createdAt DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Data utworzenia konta',
+    lastLogin DATETIME COMMENT 'Ostatnia sesja logowania',
+    isActive TINYINT(1) DEFAULT 1 COMMENT 'Czy konto jest aktywne',
+    INDEX idx_username (username),
+    INDEX idx_role (role)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- =====================================================
+-- Tabela magazynów
+-- =====================================================
+CREATE TABLE IF NOT EXISTS warehouses (
+    id VARCHAR(50) PRIMARY KEY COMMENT 'Unikalny identyfikator magazynu',
+    name VARCHAR(100) NOT NULL COMMENT 'Nazwa magazynu',
+    location VARCHAR(100) COMMENT 'Lokalizacja',
+    capacity INT COMMENT 'Pojemność magazynu',
+    createdAt DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Data utworzenia',
+    INDEX idx_name (name)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- =====================================================
+-- Tabela produktów
+-- =====================================================
+CREATE TABLE IF NOT EXISTS products (
+    id VARCHAR(50) PRIMARY KEY COMMENT 'Unikalny identyfikator produktu',
+    name VARCHAR(100) NOT NULL COMMENT 'Nazwa produktu',
+    sku VARCHAR(50) UNIQUE COMMENT 'Kod SKU',
+    description TEXT COMMENT 'Opis produktu',
+    category VARCHAR(50) COMMENT 'Kategoria',
+    createdAt DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Data utworzenia',
+    INDEX idx_sku (sku),
+    INDEX idx_category (category)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE utf8mb4_unicode_ci;

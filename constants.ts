@@ -1,8 +1,10 @@
 
 import { View, Permission, UserRole, WarehouseInfo, Recipe, AnalysisRange, PrinterDef } from './types';
 
-// Adres Twojego backendu Node.js (serwer-api)
-export const API_BASE_URL = 'http://localhost:5000/api';
+// Adres backendu Node.js (serwer-api)
+// Używamy URL względnego /api - serwer Node.js musi być dostępny na tym samym hoście
+// W produkcji: skonfiguruj proxy w vite.config.ts lub serwuj oba serwisy przez ten sam protokół
+export const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
 export const INITIAL_PRINTERS: PrinterDef[] = [
     { id: 'biuro', name: 'Biuro (TSC)', ip: '192.168.1.236' },
@@ -179,27 +181,8 @@ export const PREDEFINED_ROLES = [
     'operator_psd', 'operator_agro', 'user', 'boss', 'operator_procesu', 'lider'
 ];
 
-export const DEFAULT_PERMISSIONS: Record<string, Permission[]> = {
-    admin: Object.values(Permission),
-    planista: [Permission.PLAN_PRODUCTION_AGRO, Permission.PLAN_PRODUCTION_PSD, Permission.PLAN_MIXING, Permission.PLAN_DISPATCH_ORDERS, Permission.MANAGE_DELIVERIES, Permission.CREATE_DELIVERY, Permission.MANAGE_ADJUSTMENTS, Permission.PLAN_INTERNAL_TRANSFERS, Permission.MANAGE_INTERNAL_TRANSFERS],
-    magazynier: [Permission.CREATE_DELIVERY, Permission.PROCESS_DELIVERY_WAREHOUSE, Permission.EXECUTE_PRODUCTION_AGRO, Permission.MANAGE_DISPATCH_ORDERS, Permission.MANAGE_INTERNAL_TRANSFERS],
-    'kierownik magazynu': [Permission.CREATE_DELIVERY, Permission.PROCESS_DELIVERY_WAREHOUSE, Permission.EXECUTE_PRODUCTION_AGRO, Permission.MANAGE_DISPATCH_ORDERS, Permission.MANAGE_PALLET_LOCK, Permission.MANAGE_INTERNAL_TRANSFERS],
-    boss: Object.values(Permission),
-    lab: [Permission.PROCESS_DELIVERY_LAB, Permission.PROCESS_ANALYSIS, Permission.MANAGE_ADJUSTMENTS, Permission.MANAGE_PALLET_LOCK, Permission.EXTEND_EXPIRY_DATE, Permission.CREATE_DELIVERY],
-    operator_psd: [Permission.EXECUTE_PRODUCTION_PSD],
-    operator_agro: [Permission.EXECUTE_PRODUCTION_AGRO],
-    operator_procesu: [Permission.MANAGE_PRODUCTION_STATIONS, Permission.EXECUTE_PRODUCTION_AGRO, Permission.MANAGE_ADJUSTMENTS],
-    lider: [Permission.EXECUTE_PRODUCTION_AGRO, Permission.EXECUTE_PRODUCTION_PSD, Permission.EXECUTE_MIXING, Permission.MANAGE_ADJUSTMENTS, Permission.MANAGE_INTERNAL_TRANSFERS],
-    user: [],
-};
-
-PREDEFINED_ROLES.forEach(role => {
-    if (!DEFAULT_PERMISSIONS[role]) {
-        DEFAULT_PERMISSIONS[role] = [];
-    }
-});
-
-export const DEFAULT_CUSTOM_PERMISSIONS: Permission[] = [];
+// DEFAULT_PERMISSIONS zostały usunięte - wszystkie uprawnienia są teraz pobierane z bazy danych
+// Uprawnienia są zarządzane indywidualnie dla każdego użytkownika i przechowywane w tabeli user_permissions
 export const SOUND_OPTIONS = [ { id: 'default', name: 'Domyślny (Beep)', path: null }, { id: 'ding', name: 'Ding', path: '/sounds/ding.mp3' }, ];
 export const CHANGELOG_DATA: any[] = [
     { version: "1.0.0", date: "2024-07-26", changes: [{type: 'new', description: 'Initial release'}] }

@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from './contexts/AuthContext';
 import Input from './Input';
 import Button from './Button';
@@ -22,9 +22,22 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
     const [password, setPassword] = useState('');
     const [errors, setErrors] = useState<{ username?: string, password?: string, form?: string }>({});
     const [showPassword, setShowPassword] = useState(false);
-    const { users } = useAuth();
+    const { handleLogin, currentUser } = useAuth();
+    const [loginInProgress, setLoginInProgress] = useState(false);
 
-    const handleSubmit = (e: React.FormEvent) => {
+    // Kiedy currentUser zmieni się (po successfullym logowaniu), wyślij to do AppContent
+    useEffect(() => {
+        if (currentUser && loginInProgress) {
+            console.log('🔐 LoginPage: currentUser zmienił się na:', currentUser);
+            console.log('🔐 LoginPage: username =', currentUser.username);
+            console.log('🔐 LoginPage: permissions =', currentUser.permissions);
+            setLoginInProgress(false);
+            // Wyślij poprawne dane z AuthContext
+            onLoginSuccess(currentUser);
+        }
+    }, [currentUser, loginInProgress, onLoginSuccess]);
+
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setErrors({}); // Clear previous errors
         let validationErrors: { username?: string, password?: string, form?: string } = {};
@@ -42,37 +55,25 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
             return;
         }
 
-        const foundUser = (users || []).find(
-            (user) => user.username.toLowerCase() === username.toLowerCase() && user.password === password
-        );
-
-        if (foundUser) {
-            const { password, ...userToLogin } = foundUser;
-            onLoginSuccess(userToLogin as User);
-        } else {
-            setErrors({ form: 'Nieprawidłowa nazwa użytkownika lub hasło.' });
+        // Uruchom handleLogin - ustawi currentUser w AuthContext
+        setLoginInProgress(true);
+        const result = await handleLogin(username, password);
+        
+        if (!result.success) {
+            setLoginInProgress(false);
+            setErrors({ form: result.message });
         }
+        // Jeśli success, czekamy na zmianę currentUser w useEffect wyżej
     };
     
     const handleQrLogin = () => {
         alert("Logowanie kodem QR jest w trakcie implementacji.");
     };
 
-    const handleQuickLogin = (role: string) => {
-        const foundUser = (users || []).find(user => user.role === role);
-        if (foundUser) {
-            // SPRAWDZENIE: Jeśli użytkownik ma hasło tymczasowe, blokujemy szybkie logowanie
-            if (foundUser.isTemporaryPassword) {
-                setErrors({ form: `Konto użytkownika ${foundUser.username} wymaga ręcznego zalogowania przy użyciu hasła tymczasowego.` });
-                setUsername(foundUser.username); // Podpowiadamy login
-                return;
-            }
-
-            const { password, ...userToLogin } = foundUser;
-            onLoginSuccess(userToLogin as User);
-        } else {
-            setErrors({ form: `Użytkownik z rolą "${role}" nie został znaleziony.` });
-        }
+    const handleQuickLogin = async (role: string) => {
+        // Quick login jest niedostępny w nowej wersji z JWT
+        // Wymagane ręczne podanie hasła
+        setErrors({ form: `Szybkie logowanie jest niedostępne. Proszę zalogować się ręcznie za pomocą nazwy użytkownika i hasła.` });
     };
 
     return (

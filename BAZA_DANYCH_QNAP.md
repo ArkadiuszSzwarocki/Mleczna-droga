@@ -1,0 +1,164 @@
+# Konfiguracja Bazy Danych QNAP
+
+## Dane Połączenia
+```
+Host: filipinka.myqnapcloud.com
+Port: 3307
+Użytkownik: rootMlecznaDroga
+Hasło: Filipinka2025
+Baza: MleczDroga
+```
+
+## Struktury Plików Konfiguracyjnych
+
+### Backend (.env)
+Plik `.env` w katalogu głównym zawiera zmienne środowiskowe dla backendu:
+
+```env
+PORT=5000
+DB_HOST=filipinka.myqnapcloud.com
+DB_PORT=3307
+DB_USER=rootMlecznaDroga
+DB_PASSWORD=Filipinka2025
+DB_NAME=MleczDroga
+```
+
+**Lokalizacja:** `/workspaces/Mleczna-droga/.env`
+
+### Frontend (.env.local)
+Plik `.env.local` zawiera zmienne dla frontendu (Vite):
+
+```env
+VITE_API_URL=http://localhost:5000/api
+```
+
+**Lokalizacja:** `/workspaces/Mleczna-droga/.env.local`
+
+**Dla połączenia z zdalnym QNAP zmień na:**
+```env
+VITE_API_URL=http://filipinka.myqnapcloud.com:5000/api
+```
+
+## Zmienne Środowiskowe
+
+### Backend (server.js)
+Backend automatycznie czyta zmienne z `.env`:
+- `DB_HOST` - adres hosta bazy danych
+- `DB_PORT` - port (domyślnie 3307)
+- `DB_USER` - użytkownik
+- `DB_PASSWORD` - hasło
+- `DB_NAME` - nazwa bazy danych
+- `PORT` - port serwera API (domyślnie 5000)
+
+### Frontend (constants.ts)
+Frontend czyta zmienną `VITE_API_URL` w `constants.ts`:
+
+```typescript
+export const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+```
+
+## Uruchamianie
+
+### Tylko backend (połączony z QNAP):
+```bash
+npm run backend
+```
+
+### Tylko frontend:
+```bash
+npm run frontend
+```
+
+### Oba jednocześnie (dev mode):
+```bash
+npm run dev
+```
+
+## Sprawdzanie Połączenia
+
+### Health Check (backend)
+```bash
+curl http://localhost:5000/api/health
+```
+
+Prawidłowa odpowiedź:
+```json
+{
+  "status": "OK",
+  "database": "connected",
+  "host": "filipinka.myqnapcloud.com",
+  "timestamp": "2026-01-03T13:..."
+}
+```
+
+## Przełączanie między Localhost a QNAP
+
+### Dla pracy lokalnej:
+1. **Backend** - zostaw domyślnie na localhost (domyślnie w `.env`)
+2. **Frontend** - zmień `.env.local`:
+```env
+VITE_API_URL=http://localhost:5000/api
+```
+
+### Dla połączenia z QNAP:
+1. **Backend** - zmień `.env`:
+```env
+DB_HOST=filipinka.myqnapcloud.com
+```
+2. **Frontend** - zmień `.env.local`:
+```env
+VITE_API_URL=http://filipinka.myqnapcloud.com:5000/api
+```
+
+## Bezpieczeństwo
+
+⚠️ **WAŻNE:** Nie commituj pliku `.env` z hasłami do repozytorium!
+
+Dodaj `.env` do `.gitignore`:
+```
+.env
+.env.local
+.env.*.local
+```
+
+## Troubleshooting
+
+### Błąd: "connect ECONNREFUSED"
+- Sprawdź czy backend jest uruchomiony na porcie 5000
+- Sprawdź czy QNAP jest dostępny (ping filipinka.myqnapcloud.com)
+- Sprawdź czy dane logowania są prawidłowe
+
+### Błąd: "getaddrinfo ENOTFOUND"
+- Sprawdź połączenie internetowe
+- Sprawdź czy URL jest prawidłowy: `filipinka.myqnapcloud.com`
+
+### CORS Errors
+- Backend ma już zdefiniowany CORS (`cors` middleware w server.js)
+- Jeśli problem persystuje, sprawdź czy backend jest dostępny
+
+## Architektura
+
+```
+┌─────────────────────┐
+│   Frontend (Vite)   │
+│   constants.ts      │
+│ VITE_API_URL        │
+└──────────┬──────────┘
+           │
+           │ HTTP
+           ▼
+┌─────────────────────┐
+│  Backend (Node.js)  │
+│  server.js          │
+│  Port: 5000         │
+└──────────┬──────────┘
+           │
+           │ TCP/IP
+           ▼
+┌─────────────────────┐
+│   QNAP (MariaDB)    │
+│ 3307 (MySQL API)    │
+│ filipinka.myqnap... │
+└─────────────────────┘
+```
+

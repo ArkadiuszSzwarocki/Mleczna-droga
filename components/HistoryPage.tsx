@@ -20,7 +20,6 @@ import PrintLabelIcon from './icons/PrintLabelIcon';
 import { RawMaterialLogEntry, FinishedGoodItem, Document, SavedView } from '../types';
 import ClipboardListIcon from './icons/ClipboardListIcon';
 import DocumentTextIcon from './icons/DocumentTextIcon';
-import { usePersistedState } from '../src/usePersistedState';
 import SaveIcon from './icons/SaveIcon';
 import TrashIcon from './icons/TrashIcon';
 
@@ -61,7 +60,7 @@ const HistoryPage: React.FC = () => {
     const [filters, setFilters] = useState(initialFilters);
     const [copiedId, setCopiedId] = useState<string | null>(null);
 
-    const [savedViews, setSavedViews] = usePersistedState<SavedView[]>('history_page_views', []);
+    const [savedViews, setSavedViews] = useState<SavedView[]>([]);
     const [selectedView, setSelectedView] = useState('none');
     
     const parentRef = useRef<HTMLDivElement>(null);

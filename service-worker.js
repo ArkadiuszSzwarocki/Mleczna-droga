@@ -1,7 +1,7 @@
 
 
 // A simple, offline-first service worker
-const CACHE_NAME = 'mleczna-droga-cache-v1.9'; // Bumped version to force re-caching
+const CACHE_NAME = 'mleczna-droga-cache-v2.0'; // API calls are now excluded from cache
 const urlsToCache = [
   '/',
   '/index.html',
@@ -27,6 +27,12 @@ self.addEventListener('fetch', event => {
 
   // Ignore non-GET requests
   if (request.method !== 'GET') {
+    return;
+  }
+
+  // Bypass cache for API calls - ALWAYS fetch from network
+  if (request.url.includes('/api/') || request.url.includes(':5001') || request.url.includes(':3002')) {
+    event.respondWith(fetch(request));
     return;
   }
 

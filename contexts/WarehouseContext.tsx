@@ -1,10 +1,9 @@
 
-import React, { createContext, useContext, useMemo, PropsWithChildren, useState, useCallback } from 'react';
+import React, { createContext, useContext, useMemo, PropsWithChildren, useState, useCallback, useEffect } from 'react';
 import { RawMaterialLogEntry, Delivery, ExpiringPalletInfo, WarehouseNavLayoutItem, FinishedGoodItem, User, InventorySession, PackagingMaterialLogEntry, AnalysisResult, Document, Supplier, Customer, PalletBalance, PalletTransaction, LocationDefinition, WarehouseInfo, PalletType, View, Permission, DeliveryStatus, AnalysisRange, AnalysisRangeHistoryEntry, DeliveryCorrection } from '../../types';
-import { usePersistedState } from '../../src/usePersistedState';
 import { useAuth } from './AuthContext';
 import { INITIAL_RAW_MATERIALS, INITIAL_DELIVERIES, INITIAL_PACKAGING_MATERIALS, INITIAL_PRODUCTS, INITIAL_FINISHED_GOODS } from '../../src/initialData';
-import { DEFAULT_WAREHOUSE_NAV_LAYOUT, BUFFER_MS01_ID, BUFFER_MP01_ID, SOURCE_WAREHOUSE_ID_MS01, SUB_WAREHOUSE_ID, OSIP_WAREHOUSE_ID, MDM01_WAREHOUSE_ID, KO01_WAREHOUSE_ID, PSD_WAREHOUSE_ID, MGW01_WAREHOUSE_ID, MGW02_WAREHOUSE_ID, MGW01_RECEIVING_AREA_ID, DEFAULT_SETTINGS, SUPPLIERS_LIST, VIRTUAL_LOCATION_ARCHIVED, MOP01_WAREHOUSE_ID, DEFAULT_ANALYSIS_RANGES } from '../../constants';
+import { DEFAULT_WAREHOUSE_NAV_LAYOUT, BUFFER_MS01_ID, BUFFER_MP01_ID, SOURCE_WAREHOUSE_ID_MS01, SUB_WAREHOUSE_ID, OSIP_WAREHOUSE_ID, MDM01_WAREHOUSE_ID, KO01_WAREHOUSE_ID, PSD_WAREHOUSE_ID, MGW01_WAREHOUSE_ID, MGW02_WAREHOUSE_ID, MGW01_RECEIVING_AREA_ID, DEFAULT_SETTINGS, SUPPLIERS_LIST, VIRTUAL_LOCATION_ARCHIVED, MOP01_WAREHOUSE_ID, DEFAULT_ANALYSIS_RANGES, API_BASE_URL } from '../../constants';
 import { getBlockInfo, getExpiryStatus, generate18DigitId } from '../../src/utils';
 import { logger } from '../../utils/logger';
 
@@ -48,6 +47,7 @@ export interface WarehouseContextValue {
     allProducts: any[];
     inventorySessions: InventorySession[];
     analysisRanges: AnalysisRange[];
+    refreshRawMaterials: () => Promise<void>;
     setAnalysisRanges: React.Dispatch<React.SetStateAction<AnalysisRange[]>>;
     analysisRangesHistory: AnalysisRangeHistoryEntry[];
     logAnalysisRangeChange: (data: Omit<AnalysisRangeHistoryEntry, 'id' | 'timestamp' | 'user'>) => void;
@@ -102,26 +102,71 @@ export const useWarehouseContext = (): WarehouseContextValue => {
 export const WarehouseProvider: React.FC<PropsWithChildren> = ({ children }) => {
     const { currentUser } = useAuth();
     
-    const [rawMaterialsLogList, setRawMaterialsLogList] = usePersistedState<RawMaterialLogEntry[]>('rawMaterialsLog', INITIAL_RAW_MATERIALS);
-    const [finishedGoodsList, setFinishedGoodsList] = usePersistedState<FinishedGoodItem[]>('finishedGoods', INITIAL_FINISHED_GOODS);
-    const [deliveries, setDeliveries] = usePersistedState<Delivery[]>('deliveries', INITIAL_DELIVERIES);
-    const [packagingMaterialsLog, setPackagingMaterialsLog] = usePersistedState<PackagingMaterialLogEntry[]>('packagingLog', INITIAL_PACKAGING_MATERIALS);
-    const [inventorySessions, setInventorySessions] = usePersistedState<InventorySession[]>('inventorySessions', []);
-    const [allProducts] = usePersistedState<any[]>('allProducts', INITIAL_PRODUCTS);
-    const [warehouseNavLayout, setWarehouseNavLayout] = usePersistedState<WarehouseNavLayoutItem[]>('warehouseNavLayout', DEFAULT_WAREHOUSE_NAV_LAYOUT);
+    const [rawMaterialsLogList, setRawMaterialsLogList] = useState<RawMaterialLogEntry[]>([]);
+    const [finishedGoodsList, setFinishedGoodsList] = useState<FinishedGoodItem[]>(INITIAL_FINISHED_GOODS);
+    const [deliveries, setDeliveries] = useState<Delivery[]>(INITIAL_DELIVERIES);
+    const [packagingMaterialsLog, setPackagingMaterialsLog] = useState<PackagingMaterialLogEntry[]>(INITIAL_PACKAGING_MATERIALS);
+    const [inventorySessions, setInventorySessions] = useState<InventorySession[]>([]);
+    const [allProducts] = useState<any[]>(INITIAL_PRODUCTS);
+    const [warehouseNavLayout, setWarehouseNavLayout] = useState<WarehouseNavLayoutItem[]>(DEFAULT_WAREHOUSE_NAV_LAYOUT);
     
-    const [expiryWarningDays, setExpiryWarningDays] = usePersistedState<number>('settings_expiryWarning_v1', DEFAULT_SETTINGS.EXPIRY_WARNING_DAYS);
-    const [expiryCriticalDays, setExpiryCriticalDays] = usePersistedState<number>('settings_expiryCritical_v1', DEFAULT_SETTINGS.EXPIRY_CRITICAL_DAYS);
+    const [expiryWarningDays, setExpiryWarningDays] = useState<number>(DEFAULT_SETTINGS.EXPIRY_WARNING_DAYS);
+    const [expiryCriticalDays, setExpiryCriticalDays] = useState<number>(DEFAULT_SETTINGS.EXPIRY_CRITICAL_DAYS);
 
-    const [suppliers, setSuppliers] = usePersistedState<Supplier[]>('app_suppliers_v1', SUPPLIERS_LIST);
-    const [customers, setCustomers] = usePersistedState<Customer[]>('app_customers_v1', []);
-    const [palletBalances, setPalletBalances] = usePersistedState<PalletBalance[]>('app_pallet_balances_v1', []);
-    const [palletTransactions, setPalletTransactions] = usePersistedState<PalletTransaction[]>('app_pallet_transactions_v1', []);
+    const [suppliers, setSuppliers] = useState<Supplier[]>(SUPPLIERS_LIST);
+    const [customers, setCustomers] = useState<Customer[]>([]);
+    const [palletBalances, setPalletBalances] = useState<PalletBalance[]>([]);
+    const [palletTransactions, setPalletTransactions] = useState<PalletTransaction[]>([]);
     
-    const [managedLocations, setManagedLocations] = usePersistedState<LocationDefinition[]>('app_managed_locations_v2024_v1', INITIAL_LOCATIONS);
+    const [managedLocations, setManagedLocations] = useState<LocationDefinition[]>(INITIAL_LOCATIONS);
 
-    const [analysisRanges, setAnalysisRanges] = usePersistedState<AnalysisRange[]>('app_analysis_ranges_v1', DEFAULT_ANALYSIS_RANGES);
-    const [analysisRangesHistory, setAnalysisRangesHistory] = usePersistedState<AnalysisRangeHistoryEntry[]>('app_analysis_ranges_history_v1', []);
+    const [analysisRanges, setAnalysisRanges] = useState<AnalysisRange[]>(DEFAULT_ANALYSIS_RANGES);
+    const [analysisRangesHistory, setAnalysisRangesHistory] = useState<AnalysisRangeHistoryEntry[]>([]);
+
+    // Pobieranie surowców z API
+    const fetchRawMaterials = useCallback(async () => {
+        try {
+            const response = await fetch(`${API_BASE_URL}/raw-materials`);
+            if (response.ok) {
+                const data = await response.json();
+                // Transformuj dane z bazy na format aplikacji
+                const transformed: RawMaterialLogEntry[] = data.map((row: any) => ({
+                    id: row.id,
+                    palletData: {
+                        nrPalety: row.nrPalety,
+                        nazwa: row.nazwa,
+                        dataProdukcji: row.dataProdukcji,
+                        dataPrzydatnosci: row.dataPrzydatnosci,
+                        initialWeight: parseFloat(row.initialWeight),
+                        currentWeight: parseFloat(row.currentWeight),
+                        isBlocked: row.isBlocked === 1,
+                        blockReason: row.blockReason,
+                        batchNumber: row.batchNumber,
+                        packageForm: row.packageForm,
+                        unit: row.unit,
+                        labAnalysisNotes: row.labAnalysisNotes,
+                    },
+                    currentLocation: row.currentLocation,
+                    locationHistory: [],
+                    dateAdded: row.createdAt,
+                    lastValidatedAt: row.updatedAt,
+                }));
+                setRawMaterialsLogList(transformed);
+            }
+        } catch (err) {
+            console.error('Błąd pobierania surowców z API:', err);
+            logger.logError(err as Error, 'WarehouseContext:fetchRawMaterials');
+        }
+    }, []);
+
+    // Pobierz dane na starcie i co 5 sekund
+    useEffect(() => {
+        fetchRawMaterials(); // Pobierz na starcie
+        const interval = setInterval(() => {
+            fetchRawMaterials();
+        }, 5000); // Odśwież co 5 sekund
+        return () => clearInterval(interval);
+    }, []);
 
     const logAnalysisRangeChange = useCallback((data: Omit<AnalysisRangeHistoryEntry, 'id' | 'timestamp' | 'user'>) => {
         const newEntry: AnalysisRangeHistoryEntry = {
@@ -444,6 +489,7 @@ export const WarehouseProvider: React.FC<PropsWithChildren> = ({ children }) => 
         deliveries, setDeliveries, expiringPalletsDetails, expiryWarningDays, setExpiryWarningDays, expiryCriticalDays, setExpiryCriticalDays,
         warehouseNavLayout, setWarehouseNavLayout, findPalletByUniversalId, allProducts, inventorySessions,
         analysisRanges, setAnalysisRanges, analysisRangesHistory, logAnalysisRangeChange,
+        refreshRawMaterials: fetchRawMaterials,
         handleUpdateDeliveryStatus,
         handleSaveLabNotes,
         handleAddDocument: (id: any, type: any, file: any) => ({ success: true, message: 'Dokument dodany.', type: 'success' as const }),

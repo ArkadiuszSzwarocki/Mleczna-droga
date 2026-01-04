@@ -1,11 +1,10 @@
 
 import { useState, useCallback } from 'react';
-import { usePersistedState } from './usePersistedState';
 import { SOUND_OPTIONS } from '../constants';
 
 export const useSound = () => {
-    const [isSoundEnabled, setIsSoundEnabled] = usePersistedState<boolean>('app_settings_sound_v1', true);
-    const [notificationSound, setNotificationSound] = usePersistedState<string>('app_settings_sound_choice_v1', 'default');
+    const [isSoundEnabled, setIsSoundEnabled] = useState<boolean>(true);
+    const [notificationSound, setNotificationSound] = useState<string>('default');
     
     const toggleSoundEnabled = useCallback(() => setIsSoundEnabled(p => !p), [setIsSoundEnabled]);
 

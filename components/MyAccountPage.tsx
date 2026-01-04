@@ -31,29 +31,66 @@ const ChangePasswordForm: React.FC<{ user: User; onUpdate: (data: Partial<User>)
     const [confirmPassword, setConfirmPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
     const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+    const [loading, setLoading] = useState(false);
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setMessage(null);
+        setLoading(true);
 
-        if (currentPassword !== user.password) {
-            setMessage({ type: 'error', text: 'Obecne hasło jest nieprawidłowe.' });
-            return;
-        }
+        // Validacja po stronie klienta
         if (newPassword.length < 6) {
             setMessage({ type: 'error', text: 'Nowe hasło musi mieć min. 6 znaków.' });
+            setLoading(false);
             return;
         }
         if (newPassword !== confirmPassword) {
             setMessage({ type: 'error', text: 'Hasła nie są identyczne.' });
+            setLoading(false);
             return;
         }
 
-        onUpdate({ password: newPassword, passwordLastChanged: new Date().toISOString() });
-        setMessage({ type: 'success', text: 'Hasło zostało zmienione pomyślnie.' });
-        setCurrentPassword('');
-        setNewPassword('');
-        setConfirmPassword('');
+        try {
+            // Wysłanie do backendu
+            const token = localStorage.getItem('jwt_token');
+            if (!token) {
+                setMessage({ type: 'error', text: 'Nie jesteś zalogowany' });
+                setLoading(false);
+                return;
+            }
+
+            console.log(`🔐 ChangePasswordForm: Wysyłam /change-password`);
+            const response = await fetch('/api/change-password', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                    oldPassword: currentPassword,
+                    newPassword: newPassword
+                })
+            });
+
+            const data = await response.json();
+            console.log(`🔐 ChangePasswordForm response:`, data);
+
+            if (response.ok) {
+                setMessage({ type: 'success', text: 'Hasło zostało zmienione pomyślnie.' });
+                setCurrentPassword('');
+                setNewPassword('');
+                setConfirmPassword('');
+                // Odśwież user data
+                onUpdate({ passwordLastChanged: new Date().toISOString() });
+            } else {
+                setMessage({ type: 'error', text: data.error || 'Błąd przy zmianie hasła' });
+            }
+        } catch (error) {
+            console.error('❌ Błąd zmiany hasła:', error);
+            setMessage({ type: 'error', text: 'Błąd połączenia z serwerem' });
+        } finally {
+            setLoading(false);
+        }
     };
 
     return (
@@ -86,7 +123,9 @@ const ChangePasswordForm: React.FC<{ user: User; onUpdate: (data: Partial<User>)
                 required
             />
             <div className="flex justify-end">
-                <Button type="submit" disabled={!currentPassword || !newPassword}>Zmień Hasło</Button>
+                <Button type="submit" disabled={!currentPassword || !newPassword || loading}>
+                    {loading ? 'Zmiana...' : 'Zmień Hasło'}
+                </Button>
             </div>
         </form>
     );

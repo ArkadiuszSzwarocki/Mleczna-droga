@@ -1,6 +1,5 @@
 import React, { createContext, useContext, useMemo, PropsWithChildren, useState, useCallback, useEffect } from 'react';
 import { RawMaterialLogEntry, Delivery, ExpiringPalletInfo, WarehouseNavLayoutItem, FinishedGoodItem, User, InventorySession, PackagingMaterialLogEntry, AnalysisResult, Document, Supplier, Customer, PalletBalance, PalletTransaction, LocationDefinition, WarehouseInfo, PalletType, View, Permission, DeliveryStatus, AnalysisRange, AnalysisRangeHistoryEntry, DeliveryCorrection, DeliveryEvent, DeliveryItem } from '../../types';
-import { usePersistedState } from '../../src/usePersistedState';
 import { useAuth } from './AuthContext';
 import { INITIAL_RAW_MATERIALS, INITIAL_DELIVERIES, INITIAL_PACKAGING_MATERIALS, INITIAL_PRODUCTS, INITIAL_FINISHED_GOODS } from '../../src/initialData';
 import { DEFAULT_WAREHOUSE_NAV_LAYOUT, BUFFER_MS01_ID, BUFFER_MP01_ID, SOURCE_WAREHOUSE_ID_MS01, SUB_WAREHOUSE_ID, OSIP_WAREHOUSE_ID, MDM01_WAREHOUSE_ID, KO01_WAREHOUSE_ID, PSD_WAREHOUSE_ID, MGW01_WAREHOUSE_ID, MGW02_WAREHOUSE_ID, MGW01_RECEIVING_AREA_ID, DEFAULT_SETTINGS, SUPPLIERS_LIST, VIRTUAL_LOCATION_ARCHIVED, MOP01_WAREHOUSE_ID, DEFAULT_ANALYSIS_RANGES, API_BASE_URL } from '../../constants';
@@ -50,6 +49,7 @@ export interface WarehouseContextValue {
     setAnalysisRanges: React.Dispatch<React.SetStateAction<AnalysisRange[]>>;
     analysisRangesHistory: AnalysisRangeHistoryEntry[];
     logAnalysisRangeChange: (data: Omit<AnalysisRangeHistoryEntry, 'id' | 'timestamp' | 'user'>) => void;
+    refreshRawMaterials: () => Promise<void>;
     handleUpdateDeliveryStatus: (deliveryId: string, newStatus: DeliveryStatus) => { success: boolean, message: string, newPallets?: any[], delivery?: Delivery };
     handleSaveLabNotes: (itemId: string, isRaw: boolean, notes: string) => { success: boolean; message: string; type: 'success' | 'error' };
     handleAddDocument: (itemId: string, itemType: 'raw' | 'fg', file: File) => { success: boolean; message: string; type: 'success' | 'error' };
@@ -101,26 +101,71 @@ export const useWarehouseContext = (): WarehouseContextValue => {
 export const WarehouseProvider: React.FC<PropsWithChildren> = ({ children }) => {
     const { currentUser } = useAuth();
     
-    const [rawMaterialsLogList, setRawMaterialsLogList] = usePersistedState<RawMaterialLogEntry[]>('rawMaterialsLog', INITIAL_RAW_MATERIALS);
-    const [finishedGoodsList, setFinishedGoodsList] = usePersistedState<FinishedGoodItem[]>('finishedGoods', INITIAL_FINISHED_GOODS);
-    const [deliveries, setDeliveries] = usePersistedState<Delivery[]>('deliveries', INITIAL_DELIVERIES);
-    const [packagingMaterialsLog, setPackagingMaterialsLog] = usePersistedState<PackagingMaterialLogEntry[]>('packagingLog', INITIAL_PACKAGING_MATERIALS);
-    const [inventorySessions, setInventorySessions] = usePersistedState<InventorySession[]>('inventorySessions', []);
-    const [allProducts] = usePersistedState<any[]>('allProducts', INITIAL_PRODUCTS);
-    const [warehouseNavLayout, setWarehouseNavLayout] = usePersistedState<WarehouseNavLayoutItem[]>('warehouseNavLayout', DEFAULT_WAREHOUSE_NAV_LAYOUT);
+    const [rawMaterialsLogList, setRawMaterialsLogList] = useState<RawMaterialLogEntry[]>(INITIAL_RAW_MATERIALS);
+    const [finishedGoodsList, setFinishedGoodsList] = useState<FinishedGoodItem[]>(INITIAL_FINISHED_GOODS);
+    const [deliveries, setDeliveries] = useState<Delivery[]>(INITIAL_DELIVERIES);
+    const [packagingMaterialsLog, setPackagingMaterialsLog] = useState<PackagingMaterialLogEntry[]>(INITIAL_PACKAGING_MATERIALS);
+    const [inventorySessions, setInventorySessions] = useState<InventorySession[]>([]);
+    const [allProducts] = useState<any[]>(INITIAL_PRODUCTS);
+    const [warehouseNavLayout, setWarehouseNavLayout] = useState<WarehouseNavLayoutItem[]>(DEFAULT_WAREHOUSE_NAV_LAYOUT);
     
-    const [expiryWarningDays, setExpiryWarningDays] = usePersistedState<number>('settings_expiryWarning_v1', DEFAULT_SETTINGS.EXPIRY_WARNING_DAYS);
-    const [expiryCriticalDays, setExpiryCriticalDays] = usePersistedState<number>('settings_expiryCritical_v1', DEFAULT_SETTINGS.EXPIRY_CRITICAL_DAYS);
+    const [expiryWarningDays, setExpiryWarningDays] = useState<number>(DEFAULT_SETTINGS.EXPIRY_WARNING_DAYS);
+    const [expiryCriticalDays, setExpiryCriticalDays] = useState<number>(DEFAULT_SETTINGS.EXPIRY_CRITICAL_DAYS);
 
-    const [suppliers, setSuppliers] = usePersistedState<Supplier[]>('app_suppliers_v1', SUPPLIERS_LIST);
-    const [customers, setCustomers] = usePersistedState<Customer[]>('app_customers_v1', []);
-    const [palletBalances, setPalletBalances] = usePersistedState<PalletBalance[]>('app_pallet_balances_v1', []);
-    const [palletTransactions, setPalletTransactions] = usePersistedState<PalletTransaction[]>('app_pallet_transactions_v1', []);
+    const [suppliers, setSuppliers] = useState<Supplier[]>(SUPPLIERS_LIST);
+    const [customers, setCustomers] = useState<Customer[]>([]);
+    const [palletBalances, setPalletBalances] = useState<PalletBalance[]>([]);
+    const [palletTransactions, setPalletTransactions] = useState<PalletTransaction[]>([]);
     
-    const [managedLocations, setManagedLocations] = usePersistedState<LocationDefinition[]>('app_managed_locations_v2024_v1', INITIAL_LOCATIONS);
+    const [managedLocations, setManagedLocations] = useState<LocationDefinition[]>(INITIAL_LOCATIONS);
 
-    const [analysisRanges, setAnalysisRanges] = usePersistedState<AnalysisRange[]>('app_analysis_ranges_v1', DEFAULT_ANALYSIS_RANGES);
-    const [analysisRangesHistory, setAnalysisRangesHistory] = usePersistedState<AnalysisRangeHistoryEntry[]>('app_analysis_ranges_history_v1', []);
+    const [analysisRanges, setAnalysisRanges] = useState<AnalysisRange[]>(DEFAULT_ANALYSIS_RANGES);
+    const [analysisRangesHistory, setAnalysisRangesHistory] = useState<AnalysisRangeHistoryEntry[]>([]);
+
+    // Pobieranie surowców z API
+    const refreshRawMaterials = useCallback(async () => {
+        try {
+            const response = await fetch(`${API_BASE_URL}/raw-materials`);
+            if (response.ok) {
+                const data = await response.json();
+                // Transformuj dane z bazy na format aplikacji
+                const transformed: RawMaterialLogEntry[] = data.map((row: any) => ({
+                    id: row.id,
+                    palletData: {
+                        nrPalety: row.nrPalety,
+                        nazwa: row.nazwa,
+                        dataProdukcji: row.dataProdukcji,
+                        dataPrzydatnosci: row.dataPrzydatnosci,
+                        initialWeight: parseFloat(row.initialWeight),
+                        currentWeight: parseFloat(row.currentWeight),
+                        isBlocked: row.isBlocked === 1,
+                        blockReason: row.blockReason,
+                        batchNumber: row.batchNumber,
+                        packageForm: row.packageForm,
+                        unit: row.unit,
+                        labAnalysisNotes: row.labAnalysisNotes,
+                    },
+                    currentLocation: row.currentLocation,
+                    locationHistory: [],
+                    dateAdded: row.createdAt,
+                    lastValidatedAt: row.updatedAt,
+                }));
+                setRawMaterialsLogList(transformed);
+            }
+        } catch (err) {
+            console.error('Błąd pobierania surowców z API:', err);
+            logger.logError(err as Error, 'WarehouseContext:refreshRawMaterials');
+        }
+    }, []);
+
+    // Pobierz dane na starcie i co 5 sekund
+    useEffect(() => {
+        refreshRawMaterials(); // Pobierz na starcie
+        const interval = setInterval(() => {
+            refreshRawMaterials();
+        }, 5000); // Odśwież co 5 sekund
+        return () => clearInterval(interval);
+    }, []);
 
     // --- INTEGRACJA Z API (Pobieranie danych przy starcie) ---
     useEffect(() => {
@@ -129,7 +174,62 @@ export const WarehouseProvider: React.FC<PropsWithChildren> = ({ children }) => 
                 const deliveryRes = await fetch(`${API_BASE_URL}/deliveries`);
                 if (deliveryRes.ok) {
                     const data = await deliveryRes.json();
-                    if (data && data.length > 0) setDeliveries(data);
+                    console.log('📦 Pobrano dostawy z API:', data.length, 'rekordów');
+                    if (data.length > 0) {
+                        console.log('📦 Surowe dane pierwszej dostawy:', data[0]);
+                        console.log('📦 Items pierwszej dostawy:', data[0].items);
+                    }
+                    
+                    // Helper do konwersji dat z ISO/MySQL na yyyy-MM-dd
+                    const formatDateToInput = (dateStr: string | null) => {
+                        if (!dateStr) return '';
+                        // Jeśli format YYYY-MM-DD - zostaw
+                        if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return dateStr;
+                        // Jeśli ISO lub MySQL datetime - wyciągnij datę
+                        return dateStr.split('T')[0];
+                    };
+                    
+                    // Transformuj dane z bazy na format aplikacji
+                    const transformed = data.map((row: any) => ({
+                        id: row.id,
+                        orderRef: row.order_ref,
+                        supplier: row.supplier_name || row.supplier || 'Nieznany Dostawca',
+                        deliveryDate: formatDateToInput(row.delivery_date),
+                        status: row.status,
+                        items: (row.items || []).map((item: any) => ({
+                            id: item.id,
+                            position: item.position || 0,
+                            productId: item.product_id || '',
+                            productName: item.product_name,
+                            batchNumber: item.batch_number || item.supplier_batch || '',
+                            productionDate: formatDateToInput(item.production_date),
+                            expiryDate: formatDateToInput(item.expiry_date),
+                            netWeight: parseFloat(item.net_weight || 0),
+                            unit: item.unit || 'kg',
+                            weightPerBag: item.weight_per_bag ? parseFloat(item.weight_per_bag) : undefined,
+                            unitsPerPallet: item.units_per_pallet || undefined,
+                            packageForm: item.packaging_type || 'bags',
+                            isBlocked: item.is_blocked === 1 || item.is_blocked === true,
+                            blockReason: item.block_reason,
+                            labNotes: item.lab_notes,
+                            analysisResults: [],
+                            documents: [],
+                            isCopied: false
+                        })),
+                        createdBy: row.created_by,
+                        createdAt: row.created_at,
+                        requiresLab: row.requires_lab === 1 || row.requires_lab === true,
+                        destinationWarehouse: row.target_warehouse,
+                        warehouseStageCompletedAt: row.updated_at,
+                        correctionLog: [],
+                        eventLog: []
+                    }));
+                    
+                    if (transformed.length > 0) {
+                        console.log('✅ Pierwsza dostawa po transformacji:', transformed[0]);
+                        console.log('✅ Items po transformacji:', transformed[0].items);
+                    }
+                    setDeliveries(transformed);
                 }
             } catch (err) {
                 console.error('Błąd połączenia z API QNAP:', err);
@@ -203,18 +303,56 @@ export const WarehouseProvider: React.FC<PropsWithChildren> = ({ children }) => 
             const isNew = !delivery.id;
             const method = isNew ? 'POST' : 'PUT';
             const url = isNew ? `${API_BASE_URL}/deliveries` : `${API_BASE_URL}/deliveries/${delivery.id}`;
+            
+            // Przygotuj dane w formacie oczekiwanym przez nowy backend
+            const backendData = {
+                orderRef: delivery.orderRef,
+                supplierId: delivery.supplier && !isNaN(parseInt(delivery.supplier)) ? parseInt(delivery.supplier) : null,
+                supplierName: delivery.supplier || '',
+                deliveryDate: delivery.deliveryDate,
+                targetWarehouse: delivery.destinationWarehouse || 'BF_MS01',
+                status: delivery.status || 'REGISTRATION',
+                items: delivery.items.map((item, index) => ({
+                    id: item.id,
+                    position: index + 1,
+                    product_name: item.productName,
+                    product_code: item.productCode || '',
+                    batch_number: item.batchNumber || '',
+                    packaging_type: item.packageForm || 'bags',
+                    net_weight: item.netWeight || 0,
+                    unit: item.unit || 'kg',
+                    weight_per_bag: item.weightPerBag || null,
+                    units_per_pallet: item.unitsPerPallet || null,
+                    production_date: item.productionDate || null,
+                    expiry_date: item.expiryDate || null,
+                    is_blocked: item.isBlocked ? 1 : 0,
+                    block_reason: item.blockReason || null,
+                    lab_notes: item.labNotes || null
+                })),
+                createdBy: currentUser?.username || 'system',
+                notes: delivery.notes || ''
+            };
+            
             const response = await fetch(url, {
                 method,
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(delivery)
+                body: JSON.stringify(backendData)
             });
+            
             if (response.ok) {
                 const result = await response.json();
-                if (isNew) finalDelivery.id = result.insertId || `DEL-${Date.now()}`;
+                if (isNew) {
+                    finalDelivery.id = result.deliveryId || `DEL-${Date.now()}`;
+                    finalDelivery.status = result.status || 'REGISTRATION';
+                }
                 logger.log('info', `Zsynchronizowano dostawę ${finalDelivery.orderRef} z bazą SQL`, 'API Sync', currentUser?.username);
+            } else {
+                const error = await response.json();
+                console.error('❌ Błąd zapisu dostawy:', error);
+                return { success: false, message: error.error || 'Błąd zapisu dostawy' };
             }
         } catch (err) {
-            console.warn('API Offline - zapisuję lokalnie.');
+            console.warn('API Offline - zapisuję lokalnie:', err);
         }
         setDeliveries(prev => {
             const existingIndex = prev.findIndex(d => d.id === delivery.id);
@@ -231,49 +369,77 @@ export const WarehouseProvider: React.FC<PropsWithChildren> = ({ children }) => 
         return { success: true, message: 'Dostawa zapisana.', delivery: finalDelivery };
     }, [currentUser, setDeliveries]);
 
-    const handleUpdateDeliveryStatus = useCallback((deliveryId: string, newStatus: DeliveryStatus) => {
+    const handleUpdateDeliveryStatus = useCallback(async (deliveryId: string, newStatus: DeliveryStatus) => {
         let success = false;
         let newPallets: any[] = [];
+        
+        // Jeśli status to COMPLETED, wywołaj endpoint finalizacji na backendzie
+        if (newStatus === 'COMPLETED') {
+            try {
+                const response = await fetch(`${API_BASE_URL}/deliveries/${deliveryId}/finalize`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        completedBy: currentUser?.username || 'system' 
+                    })
+                });
+                
+                if (response.ok) {
+                    const result = await response.json();
+                    console.log('✅ Dostawa sfinalizowana, utworzono palety:', result.pallets);
+                    
+                    // Odśwież dane dostaw z API
+                    const deliveryRes = await fetch(`${API_BASE_URL}/deliveries/${deliveryId}`);
+                    if (deliveryRes.ok) {
+                        const updatedDelivery = await deliveryRes.json();
+                        setDeliveries(prev => prev.map(d => d.id === deliveryId ? updatedDelivery : d));
+                    }
+                    
+                    // Odśwież dane surowców z API aby pobrać nowo utworzone palety
+                    const rawRes = await fetch(`${API_BASE_URL}/raw-materials`);
+                    if (rawRes.ok) {
+                        const rawData = await rawRes.json();
+                        // TODO: Transformacja danych z bazy do formatu aplikacji
+                        setRawMaterialsLogList(rawData.map((row: any) => ({
+                            id: row.id,
+                            palletData: {
+                                nrPalety: row.nrPalety,
+                                nazwa: row.nazwa,
+                                dataProdukcji: row.dataProdukcji,
+                                dataPrzydatnosci: row.dataPrzydatnosci,
+                                initialWeight: row.initialWeight,
+                                currentWeight: row.currentWeight,
+                                isBlocked: row.isBlocked,
+                                batchNumber: row.batchNumber,
+                                packageForm: row.packageForm,
+                                unit: row.unit,
+                                labAnalysisNotes: row.labAnalysisNotes
+                            },
+                            currentLocation: row.currentLocation,
+                            dateAdded: row.createdAt,
+                            lastValidatedAt: row.updatedAt
+                        })));
+                    }
+                    
+                    return { success: true, message: 'Dostawa zakończona - palety utworzone w magazynie', newPallets: result.pallets || [] };
+                } else {
+                    const error = await response.json();
+                    console.error('❌ Błąd finalizacji dostawy:', error);
+                    return { success: false, message: error.error || 'Błąd finalizacji dostawy' };
+                }
+            } catch (err) {
+                console.error('❌ Błąd API podczas finalizacji:', err);
+                // Fallback do lokalnej logiki jeśli API nie działa
+            }
+        }
+        
+        // Lokalna aktualizacja statusu (dla innych statusów lub fallback)
         setDeliveries(prev => prev.map(d => {
             if (d.id === deliveryId) {
                 success = true;
                 const updated = { ...d, status: newStatus };
                 if (newStatus === 'COMPLETED') {
                     updated.warehouseStageCompletedAt = new Date().toISOString();
-                    newPallets = d.items.map(item => {
-                        const newPalletId = generate18DigitId();
-                        return {
-                            id: newPalletId,
-                            palletData: {
-                                nrPalety: newPalletId,
-                                nazwa: item.productName,
-                                dataProdukcji: item.productionDate,
-                                dataPrzydatnosci: item.expiryDate,
-                                initialWeight: item.netWeight || 0,
-                                currentWeight: item.netWeight || 0,
-                                isBlocked: item.isBlocked,
-                                batchNumber: item.batchNumber,
-                                packageForm: item.packageForm,
-                                unit: item.unit || 'kg',
-                                analysisResults: item.analysisResults,
-                                documents: item.documents,
-                                labAnalysisNotes: item.labNotes
-                            },
-                            currentLocation: d.destinationWarehouse || BUFFER_MS01_ID,
-                            locationHistory: [{
-                                movedBy: currentUser?.username || 'system',
-                                movedAt: new Date().toISOString(),
-                                previousLocation: null,
-                                targetLocation: d.destinationWarehouse || BUFFER_MS01_ID,
-                                action: 'added_new_to_delivery_buffer',
-                                deliveryOrderRef: d.orderRef,
-                                deliveryDate: d.deliveryDate
-                            }],
-                            dateAdded: new Date().toISOString(),
-                            lastValidatedAt: new Date().toISOString()
-                        };
-                    });
-                    setRawMaterialsLogList(prevRaw => [...prevRaw, ...newPallets]);
                 }
                 return updated;
             }
@@ -392,6 +558,7 @@ export const WarehouseProvider: React.FC<PropsWithChildren> = ({ children }) => 
         deliveries, setDeliveries, expiringPalletsDetails, expiryWarningDays, setExpiryWarningDays, expiryCriticalDays, setExpiryCriticalDays,
         warehouseNavLayout, setWarehouseNavLayout, findPalletByUniversalId, allProducts, inventorySessions,
         analysisRanges, setAnalysisRanges, analysisRangesHistory, logAnalysisRangeChange,
+        refreshRawMaterials,
         handleUpdateDeliveryStatus,
         handleSaveLabNotes: () => ({ success: true, message: 'OK', type: 'success' as const }),
         handleAddDocument: () => ({ success: true, message: 'OK', type: 'success' as const }),

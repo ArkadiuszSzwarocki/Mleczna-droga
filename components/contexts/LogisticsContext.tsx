@@ -1,6 +1,5 @@
 import React, { createContext, useContext, PropsWithChildren, useState } from 'react';
 import { InternalTransferOrder, LogisticsContextValue, RawMaterialLogEntry, DispatchOrder, FinishedGoodItem, InternalTransferItem } from '../../types';
-import { usePersistedState } from '../../src/usePersistedState';
 import { useAuth } from './AuthContext';
 import { useWarehouseContext } from './WarehouseContext';
 import { OSIP_WAREHOUSE_ID, IN_TRANSIT_OSIP_ID, BUFFER_MS01_ID } from '../../constants';
@@ -25,8 +24,8 @@ export const useLogisticsContext = (): ExtendedLogisticsContextValue => {
 export const LogisticsProvider: React.FC<PropsWithChildren> = ({ children }) => {
     const { currentUser } = useAuth();
     const { findPalletByUniversalId, handleUniversalMove, finishedGoodsList, setFinishedGoodsList } = useWarehouseContext();
-    const [internalTransferOrders, setInternalTransferOrders] = usePersistedState<InternalTransferOrder[]>('internalTransfers', []);
-    const [dispatchOrders, setDispatchOrders] = usePersistedState<DispatchOrder[]>('dispatchOrders_v1', INITIAL_DISPATCH_ORDERS);
+    const [internalTransferOrders, setInternalTransferOrders] = useState<InternalTransferOrder[]>([]);
+    const [dispatchOrders, setDispatchOrders] = useState<DispatchOrder[]>(INITIAL_DISPATCH_ORDERS);
 
 
     const handleCreateInternalTransfer = (items: InternalTransferItem[], sourceWarehouse: string, destinationWarehouse: string) => {

@@ -1,6 +1,5 @@
-import React, { createContext, useContext, PropsWithChildren } from 'react';
+import React, { createContext, useContext, PropsWithChildren, useState } from 'react';
 import { AdjustmentOrder } from '../../types';
-import { usePersistedState } from '../../src/usePersistedState';
 // FIX: Corrected import path for initialData to be relative
 import { INITIAL_ADJUSTMENT_ORDERS } from '../../src/initialData';
 import { useAuth } from './AuthContext';
@@ -23,7 +22,7 @@ export const useRecipeAdjustmentContext = (): RecipeAdjustmentContextValue => {
 };
 
 export const RecipeAdjustmentProvider: React.FC<PropsWithChildren> = ({ children }) => {
-    const [adjustmentOrders, setAdjustmentOrders] = usePersistedState<AdjustmentOrder[]>('adjustmentOrders', INITIAL_ADJUSTMENT_ORDERS);
+    const [adjustmentOrders, setAdjustmentOrders] = useState<AdjustmentOrder[]>(INITIAL_ADJUSTMENT_ORDERS);
     const { currentUser } = useAuth();
 
     const handleUpdateAdjustmentOrder = (orderId: string, updates: Partial<AdjustmentOrder>) => {

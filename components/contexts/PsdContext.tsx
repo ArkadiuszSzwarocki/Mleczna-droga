@@ -1,7 +1,6 @@
 
-import React, { createContext, useContext, PropsWithChildren, useCallback } from 'react';
+import React, { createContext, useContext, PropsWithChildren, useCallback, useState } from 'react';
 import { PsdContextValue, PsdTask, RawMaterialLogEntry, PsdConsumedMaterial, ProductionEvent } from '../../types';
-import { usePersistedState } from '../../src/usePersistedState';
 import { INITIAL_PSD_TASKS } from '../../src/initialData';
 import { useAuth } from './AuthContext';
 import { useWarehouseContext } from './WarehouseContext';
@@ -19,7 +18,7 @@ export const usePsdContext = (): PsdContextValue => {
 };
 
 export const PsdProvider: React.FC<PropsWithChildren> = ({ children }) => {
-    const [psdTasks, setPsdTasks] = usePersistedState<PsdTask[]>('psdTasks', INITIAL_PSD_TASKS);
+    const [psdTasks, setPsdTasks] = useState<PsdTask[]>(INITIAL_PSD_TASKS);
     const { setFinishedGoodsList, setRawMaterialsLogList, rawMaterialsLogList, inventorySessions } = useWarehouseContext();
     const { currentUser } = useAuth();
 

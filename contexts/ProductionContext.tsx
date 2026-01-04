@@ -1,7 +1,6 @@
 
 import React, { createContext, useContext, PropsWithChildren, useState, useCallback } from 'react';
 import { ProductionRun, FinishedGoodItem, Recipe, ProductionRunTemplate, Permission, AdjustmentOrder, PsdBatch, AgroConsumedMaterial, SplitProposalDetails, ProductionEvent } from '../../types';
-import { usePersistedState } from '../../src/usePersistedState';
 import { INITIAL_PRODUCTION_RUNS, INITIAL_FINISHED_GOODS } from '../../src/initialData';
 import { SAMPLE_RECIPES, STATION_RAW_MATERIAL_MAPPING_DEFAULT, AGRO_LINE_PRODUCTION_RATE_KG_PER_MINUTE } from '../../constants';
 import { useAuth } from './AuthContext';
@@ -71,11 +70,11 @@ export const useProductionContext = (): ProductionContextValue => {
 
 export const ProductionProvider: React.FC<PropsWithChildren> = ({ children }) => {
     const { currentUser } = useAuth();
-    const [productionRunsList, setProductionRunsList] = usePersistedState<ProductionRun[]>('productionRuns', INITIAL_PRODUCTION_RUNS);
-    const [finishedGoodsList, setFinishedGoodsList] = usePersistedState<FinishedGoodItem[]>('finishedGoods', INITIAL_FINISHED_GOODS);
-    const [recipes, setRecipes] = usePersistedState<Recipe[]>('app_recipes_v1', SAMPLE_RECIPES);
-    const [stationRawMaterialMapping, setStationRawMaterialMapping] = usePersistedState<Record<string, string>>('stationMapping_v2', STATION_RAW_MATERIAL_MAPPING_DEFAULT);
-    const [productionRunTemplates, setProductionRunTemplates] = usePersistedState<ProductionRunTemplate[]>('productionRunTemplates', []);
+    const [productionRunsList, setProductionRunsList] = useState<ProductionRun[]>(INITIAL_PRODUCTION_RUNS);
+    const [finishedGoodsList, setFinishedGoodsList] = useState<FinishedGoodItem[]>(INITIAL_FINISHED_GOODS);
+    const [recipes, setRecipes] = useState<Recipe[]>(SAMPLE_RECIPES);
+    const [stationRawMaterialMapping, setStationRawMaterialMapping] = useState<Record<string, string>>(STATION_RAW_MATERIAL_MAPPING_DEFAULT);
+    const [productionRunTemplates, setProductionRunTemplates] = useState<ProductionRunTemplate[]>([]);
 
     const handleStartProductionRun = useCallback((runId: string) => {
         setProductionRunsList(prev => prev.map(r => {

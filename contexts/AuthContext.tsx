@@ -1,9 +1,8 @@
 
-import React, { createContext, useContext, PropsWithChildren, useState, useCallback, useMemo } from 'react';
+import React, { createContext, useContext, PropsWithChildren, useState, useCallback, useMemo, useEffect } from 'react';
 import { User, UserRole, Permission } from '../../types';
-import { usePersistedState } from '../../src/usePersistedState';
 import { INITIAL_USERS } from '../../src/initialData';
-import { DEFAULT_SETTINGS, DEFAULT_PERMISSIONS, PREDEFINED_ROLES, DEFAULT_CUSTOM_PERMISSIONS } from '../../constants';
+import { DEFAULT_SETTINGS, PREDEFINED_ROLES, API_BASE_URL } from '../../constants';
 
 export interface AuthContextValue {
     currentUser: User | null;
@@ -43,13 +42,65 @@ export const useAuth = (): AuthContextValue => {
 };
 
 export const AuthProvider: React.FC<PropsWithChildren> = ({ children }) => {
-    const [users, setUsers] = usePersistedState<User[]>('users_v2_subroles', INITIAL_USERS.map(u => ({...u, subRole: u.subRole || 'AGRO'})));
+    const [users, setUsers] = useState<User[]>([]);
     const [currentUser, setCurrentUser] = useState<User | null>(null);
-    const [sessionTimeoutMinutes, setSessionTimeoutMinutes] = usePersistedState<number>('settings_sessionTimeout_v1', DEFAULT_SETTINGS.SESSION_TIMEOUT_MINUTES);
-    const [promptTimeoutMinutes, setPromptTimeoutMinutes] = usePersistedState<number>('settings_promptTimeout_v1', DEFAULT_SETTINGS.PROMPT_TIMEOUT_MINUTES);
+    const [sessionTimeoutMinutes, setSessionTimeoutMinutes] = useState<number>(DEFAULT_SETTINGS.SESSION_TIMEOUT_MINUTES);
+    const [promptTimeoutMinutes, setPromptTimeoutMinutes] = useState<number>(DEFAULT_SETTINGS.PROMPT_TIMEOUT_MINUTES);
     
-    const [rolePermissions, setRolePermissions] = usePersistedState<Record<string, Permission[]>>('rolePermissions', DEFAULT_PERMISSIONS);
-    const [allSubRoles, setAllSubRoles] = usePersistedState<string[]>('app_subroles_list_v1', ['AGRO', 'OSIP']);
+    const [rolePermissions, setRolePermissions] = useState<Record<string, Permission[]>>({});
+    const [allSubRoles, setAllSubRoles] = useState<string[]>(['AGRO', 'OSIP']);
+
+    // Pobieranie użytkowników z API
+    useEffect(() => {
+        const fetchUsers = async () => {
+            try {
+                const response = await fetch(`${API_BASE_URL}/users`);
+                if (response.ok) {
+                    const data = await response.json();
+                    // Transformuj dane z bazy na format aplikacji
+                    const transformed: User[] = await Promise.all(data.map(async (row: any) => {
+                        // Pobierz uprawnienia dla każdego użytkownika z API
+                        let permissions: Permission[] = [];
+                        try {
+                            const permResponse = await fetch(`${API_BASE_URL}/permissions/${row.id}`);
+                            if (permResponse.ok) {
+                                const permData = await permResponse.json();
+                                permissions = permData.permissions as Permission[];
+                            } else {
+                                // Uprawnienia będą puste jeśli nie ma w bazie
+                                permissions = [];
+                            }
+                        } catch (err) {
+                            console.warn(`Błąd pobierania uprawnień dla użytkownika ${row.id}:`, err);
+                            // Uprawnienia będą puste jeśli wystąpił błąd
+                            permissions = [];
+                        }
+
+                        return {
+                            id: row.id,
+                            username: row.username,
+                            password: '', // Nie przechowujemy hasła na froncie
+                            role: row.role as UserRole,
+                            subRole: row.sub_role || 'AGRO',
+                            pin: row.pin,
+                            passwordLastChanged: row.password_last_changed || new Date().toISOString(),
+                            isTemporaryPassword: row.is_temporary_password === 1,
+                            permissions,
+                        };
+                    }));
+                    setUsers(transformed);
+                } else {
+                    // Fallback na INITIAL_USERS jeśli API zwróci błąd
+                    setUsers(INITIAL_USERS.map(u => ({...u, subRole: u.subRole || 'AGRO'})));
+                }
+            } catch (err) {
+                console.error('Błąd pobierania użytkowników z API:', err);
+                // Fallback na INITIAL_USERS
+                setUsers(INITIAL_USERS.map(u => ({...u, subRole: u.subRole || 'AGRO'})));
+            }
+        };
+        fetchUsers();
+    }, []);
 
     const allRoles = useMemo(() => {
         return Array.from(new Set([...PREDEFINED_ROLES, ...Object.keys(rolePermissions)]))
@@ -74,6 +125,16 @@ export const AuthProvider: React.FC<PropsWithChildren> = ({ children }) => {
 
         setUsers(prev => prev.map(u => u.id === userId ? updatedUser : u));
         
+        // Synchronizacja z API
+        fetch(`${API_BASE_URL}/users/${userId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                password: newPass,
+                passwordLastChanged: updatedUser.passwordLastChanged
+            })
+        }).catch(err => console.error('Błąd synchronizacji hasła z bazą:', err));
+        
         return { success: true, message: 'Hasło zostało zaktualizowane.', updatedUser };
     };
 
@@ -94,26 +155,56 @@ export const AuthProvider: React.FC<PropsWithChildren> = ({ children }) => {
         }
 
         const tempPassword = Math.random().toString(36).slice(-8);
+        const passwordLastChanged = new Date().toISOString();
         
         setUsers(prev => prev.map(u => u.id === userId ? { 
             ...u, 
             isTemporaryPassword: true, 
             password: tempPassword,
-            passwordLastChanged: new Date().toISOString() 
+            passwordLastChanged 
         } : u));
+
+        // Synchronizacja z API
+        fetch(`${API_BASE_URL}/users/${userId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                password: tempPassword,
+                isTemporaryPassword: true,
+                passwordLastChanged
+            })
+        }).catch(err => console.error('Błąd synchronizacji resetu hasła z bazą:', err));
 
         return { success: true, message: 'Hasło zostało zresetowane pomyślnie.', tempPassword };
     };
     
     const handleAddUser = (userData: Omit<User, 'id' | 'passwordLastChanged' | 'permissions'>) => {
+        const passwordLastChanged = new Date().toISOString();
         const newUser: User = {
             id: `u-${Date.now()}`,
             ...userData,
             isTemporaryPassword: true,
-            passwordLastChanged: new Date().toISOString(),
-            permissions: rolePermissions[userData.role] || [],
+            passwordLastChanged,
+            permissions: [],
         };
         setUsers(prev => [...prev, newUser]);
+        
+        // Synchronizacja z API - generuj tymczasowe hasło
+        const tempPassword = Math.random().toString(36).slice(-8);
+        fetch(`${API_BASE_URL}/users`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                username: userData.username,
+                password: tempPassword,
+                role: userData.role,
+                subRole: userData.subRole || 'AGRO',
+                pin: userData.pin,
+                isTemporaryPassword: true,
+                passwordLastChanged
+            })
+        }).catch(err => console.error('Błąd dodawania użytkownika do bazy:', err));
+        
         return { success: true, message: 'Użytkownik dodany.' };
     };
 
@@ -121,13 +212,31 @@ export const AuthProvider: React.FC<PropsWithChildren> = ({ children }) => {
         setUsers(prev => prev.map(u => {
             if (u.id === userId) {
                 const updatedUser = { ...u, ...updates };
-                if (updates.role && u.role !== updates.role) {
-                    updatedUser.permissions = rolePermissions[updates.role] || DEFAULT_CUSTOM_PERMISSIONS;
-                }
+                // Nie nadpisuj uprawnień - pozostają z bazy danych
                 return updatedUser;
             }
             return u;
         }));
+        
+        // Synchronizacja z API
+        const apiPayload: any = {};
+        if (updates.username !== undefined) apiPayload.username = updates.username;
+        if (updates.password !== undefined) {
+            apiPayload.password = updates.password;
+            apiPayload.passwordLastChanged = new Date().toISOString();
+        }
+        if (updates.role !== undefined) apiPayload.role = updates.role;
+        if (updates.subRole !== undefined) apiPayload.subRole = updates.subRole;
+        if (updates.pin !== undefined) apiPayload.pin = updates.pin;
+        
+        if (Object.keys(apiPayload).length > 0) {
+            fetch(`${API_BASE_URL}/users/${userId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(apiPayload)
+            }).catch(err => console.error('Błąd aktualizacji użytkownika w bazie:', err));
+        }
+        
         return { success: true, message: 'Dane użytkownika zaktualizowane.' };
     };
 
@@ -143,7 +252,7 @@ export const AuthProvider: React.FC<PropsWithChildren> = ({ children }) => {
         }
         setRolePermissions(prev => ({
             ...prev,
-            [normalizedRoleName]: DEFAULT_CUSTOM_PERMISSIONS
+            [normalizedRoleName]: []
         }));
         return { success: true, message: `Rola '${normalizedRoleName}' została dodana.` };
     };
@@ -173,23 +282,53 @@ export const AuthProvider: React.FC<PropsWithChildren> = ({ children }) => {
         return { success: true, message: `Uprawnienia dla roli '${roleName}' zaktualizowane.` };
     };
 
-    const handleUpdateUserPermissions = (userId: string, newPermissions: Permission[]) => {
-        let success = false;
-        setUsers(prevUsers => {
-            const userExists = prevUsers.some(u => u.id === userId);
-            if (!userExists) return prevUsers;
+    const handleUpdateUserPermissions = async (userId: string, newPermissions: Permission[]) => {
+        const token = localStorage.getItem('jwt_token');
+        try {
+            // 1. Wyślij uprawnienia do API
+            const response = await fetch(`${API_BASE_URL}/user-permissions`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token || ''}`
+                },
+                body: JSON.stringify({
+                    userId,
+                    permissions: newPermissions
+                })
+            });
 
-            success = true;
-            return prevUsers.map(user => 
-                user.id === userId ? { ...user, permissions: newPermissions } : user
-            );
-        });
-        
-        if (currentUser?.id === userId) {
-            setCurrentUser(prev => prev ? { ...prev, permissions: newPermissions } : null);
+            if (!response.ok) {
+                console.error('Błąd zapisywania uprawnień:', response.statusText);
+                return { success: false, message: 'Błąd zapisywania uprawnień na serwerze' };
+            }
+
+            // 2. Pobierz aktualne uprawnienia z API
+            const permResponse = await fetch(`${API_BASE_URL}/permissions/${userId}`);
+            if (permResponse.ok) {
+                const permData = await permResponse.json();
+                const updatedPermissions = permData.permissions as Permission[];
+
+                // 3. Aktualizuj state lokalnie
+                setUsers(prevUsers => 
+                    prevUsers.map(user => 
+                        user.id === userId ? { ...user, permissions: updatedPermissions } : user
+                    )
+                );
+                
+                if (currentUser?.id === userId) {
+                    setCurrentUser(prev => prev ? { ...prev, permissions: updatedPermissions } : null);
+                }
+
+                console.log(`✅ Uprawnienia dla użytkownika ${userId} zostały zaktualizowane`);
+                return { success: true, message: 'Uprawnienia zostały zapisane' };
+            }
+
+            return { success: true, message: 'Uprawnienia zostały zapisane' };
+        } catch (err) {
+            console.error('Błąd:', err);
+            return { success: false, message: 'Błąd połączenia z serwerem' };
         }
-
-        return { success, message: success ? "Uprawnienia zaktualizowane." : "Nie znaleziono użytkownika." };
     };
 
     const handleAddSubRole = (name: string) => {

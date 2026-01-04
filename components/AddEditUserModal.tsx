@@ -56,7 +56,7 @@ const AddEditUserModal: React.FC<AddEditUserModalProps> = ({ isOpen, onClose, us
     }
   }, [isOpen, userToEdit, isEditing]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrors({});
     let validationErrors: any = {};
@@ -75,9 +75,10 @@ const AddEditUserModal: React.FC<AddEditUserModalProps> = ({ isOpen, onClose, us
 
     let result;
     if (isEditing && userToEdit) {
-        result = handleEditUser(userToEdit.id, { username: username.trim(), role, subRole });
+        result = await handleEditUser(userToEdit.id, { username: username.trim(), role, subRole });
     } else {
-        result = handleAddUser({ username: username.trim(), password, role, subRole, pin: '0000' } as any);
+        // Hasło zostanie wygenerowane na backendzie - nie przesyłamy go z frontu
+        result = await handleAddUser({ username: username.trim(), role, subRole, pin: '0000' });
     }
 
     if (result.success) {

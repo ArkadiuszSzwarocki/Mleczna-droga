@@ -26,10 +26,22 @@ const DeliverySummaryConfirmModal: React.FC<DeliverySummaryConfirmModalProps> = 
 
     const getButtonText = () => {
         if (delivery.status === 'REGISTRATION') {
-            return delivery.requiresLab ? 'Zapisz i Przekaż do Lab' : 'Zakończ Przyjęcie i Drukuj Etykiety';
+            return delivery.requiresLab ? 'Zatwierdź i Przekaż do Laboratorium' : 'Zakończ Przyjęcie i Drukuj Etykiety';
         }
         if (delivery.status === 'PENDING_LAB') return 'Zatwierdź i Przekaż do Magazynu';
+        if (delivery.status === 'PENDING_WAREHOUSE') return 'Zatwierdź i Drukuj Etykiety';
         return 'Zatwierdź Podsumowanie';
+    };
+
+    const getStatusLabel = () => {
+        switch(delivery.status) {
+            case 'REGISTRATION': return 'Rejestracja';
+            case 'PENDING_LAB': return 'Oczekuje na Laboratorium';
+            case 'PENDING_WAREHOUSE': return 'Przekazywanie do Magazynu';
+            case 'COMPLETED': return 'Zakończona';
+            case 'ARCHIVED': return 'Zarchiwizowana';
+            default: return delivery.status;
+        }
     };
 
     const handleConfirm = () => {
@@ -96,7 +108,7 @@ const DeliverySummaryConfirmModal: React.FC<DeliverySummaryConfirmModalProps> = 
                         </div>
                         <div>
                             <h2 className="text-xl font-black uppercase tracking-tighter text-primary-700 dark:text-primary-300">Szczegóły i Podsumowanie Dostawy</h2>
-                            <p className="text-xs font-bold text-gray-500 uppercase tracking-widest">Status: {delivery.status}</p>
+                            <p className="text-xs font-bold text-gray-500 uppercase tracking-widest">Status: {getStatusLabel()}</p>
                         </div>
                     </div>
                     <button onClick={onClose} className="p-2 text-gray-400 hover:text-red-500 transition-colors"><XCircleIcon className="h-7 w-7"/></button>

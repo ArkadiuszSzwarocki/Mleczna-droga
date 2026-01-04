@@ -1,7 +1,6 @@
 
-import React, { createContext, useContext, PropsWithChildren } from 'react';
+import React, { createContext, useContext, PropsWithChildren, useState } from 'react';
 import { MixingContextValue, MixingTask } from '../../types';
-import { usePersistedState } from '../../src/usePersistedState';
 import { INITIAL_MIXING_TASKS } from '../../src/initialData';
 import { useProductionContext } from './ProductionContext';
 import { useWarehouseContext } from './WarehouseContext';
@@ -21,7 +20,7 @@ export const useMixingContext = (): MixingContextValue => {
 export const MixingProvider: React.FC<PropsWithChildren> = ({ children }) => {
     const { finishedGoodsList, setFinishedGoodsList } = useProductionContext();
     const { inventorySessions } = useWarehouseContext();
-    const [mixingTasks, setMixingTasks] = usePersistedState<MixingTask[]>('mixingTasks', INITIAL_MIXING_TASKS);
+    const [mixingTasks, setMixingTasks] = useState<MixingTask[]>(INITIAL_MIXING_TASKS);
 
     const handleUpdateMixingTask = (taskId: string, updates: Partial<MixingTask>) => {
         setMixingTasks(prev => prev.map(t => t.id === taskId ? { ...t, ...updates } : t));

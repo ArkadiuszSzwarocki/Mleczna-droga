@@ -233,26 +233,31 @@ export const AppContent = () => {
     }, [currentUser, handleSetView]);
 
     const handleLoginSuccess = (user: any) => {
+        console.log('🔐 handleLoginSuccess wołane');
+        // currentUser jest już ustawiony w AuthContext.handleLogin
+        // Sprawdzujemy czy user ma hasło tymczasowe (z JWT)
         setForcePasswordChange(null);
-        const liveUser = users.find(u => u.id === user.id) || user;
-        if (liveUser.isTemporaryPassword) setForcePasswordChange({ user: liveUser, reason: 'temporary' });
+        if (user?.isTemporaryPassword) {
+            console.log('🔐 Hasło tymczasowe - pokazuję modal');
+            setForcePasswordChange({ user, reason: 'temporary' });
+        }
         else {
-            handleLogin(liveUser);
+            console.log('🔐 Normalny login - idę do dashboardu');
             handleSetView(View.Dashboard, null, true);
         }
     };
 
     const handlePasswordChangeSuccess = (user: any) => {
         setForcePasswordChange(null);
-        handleLogin(user);
         handleSetView(View.Dashboard, null, true);
     };
 
-    if (!currentUser) {
+    // Modal do zmiany hasła powinien się pokazać ZAWSZE gdy forcePasswordChange jest ustawione
+    if (forcePasswordChange) {
+        console.log('🔐 Renderuję modal zmiany hasła');
         return (
             <Suspense fallback={<LoadingFallback />}>
-                <LoginPage onLoginSuccess={handleLoginSuccess} />
-                {forcePasswordChange && (
+                <div className="w-full h-screen bg-slate-100 dark:bg-secondary-900 flex items-center justify-center">
                     <ForcePasswordChangeModal 
                         isOpen={true}
                         user={forcePasswordChange.user}
@@ -260,7 +265,17 @@ export const AppContent = () => {
                         onSuccess={handlePasswordChangeSuccess}
                         onClose={() => setForcePasswordChange(null)}
                     />
-                )}
+                </div>
+            </Suspense>
+        );
+    }
+
+    // Jeśli nie ma currentUser to pokaż LoginPage
+    if (!currentUser) {
+        console.log('🔐 Renderuję LoginPage');
+        return (
+            <Suspense fallback={<LoadingFallback />}>
+                <LoginPage onLoginSuccess={handleLoginSuccess} />
             </Suspense>
         );
     }

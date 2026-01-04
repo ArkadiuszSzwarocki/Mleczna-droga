@@ -5,12 +5,11 @@ import { getNavItemsDefinition } from '../src/navigation';
 import Checkbox from './Checkbox';
 import Button from './Button';
 import Alert from './Alert';
-import { usePersistedState } from '../src/usePersistedState';
 
 const SidebarLayoutSettingsPage: React.FC = () => {
     // This state simulates saving preferences. In a full implementation, 
     // the Sidebar component would read this state to filter items.
-    const [hiddenGroups, setHiddenGroups] = usePersistedState<string[]>('sidebar_hidden_groups_v1', []);
+    const [hiddenGroups, setHiddenGroups] = useState<string[]>([]);
     const [items, setItems] = useState<any[]>([]);
     const [feedback, setFeedback] = useState<{ type: 'success' | 'info', message: string } | null>(null);
 

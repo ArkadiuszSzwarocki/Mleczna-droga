@@ -39,8 +39,8 @@ export const NetworkPrintModal: React.FC<NetworkPrintModalProps> = ({
 }) => {
     const { printServerUrl, printers } = useUIContext();
     const [isPrinting, setIsPrinting] = useState(false);
-    // Ustawienie domyślnej liczby kopii na 2
-    const [copies, setCopies] = useState(2);
+    // Ustawienie domyślnej liczby kopii na 1
+    const [copies, setCopies] = useState(1);
     const [feedback, setFeedback] = useState<{ type: 'success' | 'error', message: string, details?: React.ReactNode } | null>(null);
 
     const { type, data, context, onSuccess } = labelPayload || {};

@@ -1,21 +1,20 @@
-
-import React, { createContext, useContext, PropsWithChildren, useState, useCallback, useMemo } from 'react';
+import React, { createContext, useContext, PropsWithChildren, useState, useCallback, useMemo, useEffect } from 'react';
 import { User, UserRole, Permission } from '../../types';
-import { usePersistedState } from '../../src/usePersistedState';
 import { INITIAL_USERS } from '../../src/initialData';
-import { DEFAULT_SETTINGS, DEFAULT_PERMISSIONS, PREDEFINED_ROLES, DEFAULT_CUSTOM_PERMISSIONS } from '../../constants';
+import { DEFAULT_SETTINGS, PREDEFINED_ROLES, API_BASE_URL } from '../../constants';
 
 export interface AuthContextValue {
     currentUser: User | null;
     users: User[];
-    handleLogin: (user: User) => void;
+    handleLogin: (username: string, password: string) => Promise<{ success: boolean; message: string }>;
     handleLogout: () => void;
-    forcePasswordUpdate: (userId: string, newPassword: string) => { success: boolean; message: string, updatedUser?: User };
+    handleChangePassword: (oldPassword: string, newPassword: string) => Promise<{ success: boolean; message: string }>;
+    handleForceChangePassword: (newPassword: string) => Promise<{ success: boolean; message: string }>;
     checkPermission: (permission: Permission) => boolean;
-    handleResetPassword: (userId: string) => { success: boolean, message: string, tempPassword?: string };
-    handleAddUser: (userData: Omit<User, 'id' | 'passwordLastChanged' | 'permissions'>) => { success: boolean, message: string };
-    handleEditUser: (userId: string, updates: Partial<User>) => { success: boolean, message: string };
-    handleDeleteUser: (userId: string) => { success: boolean, message: string };
+    handleResetPassword: (userId: string) => Promise<{ success: boolean, message: string, tempPassword?: string }>;
+    handleAddUser: (userData: Omit<User, 'id' | 'passwordLastChanged' | 'permissions' | 'password'>) => Promise<{ success: boolean, message: string }>;
+    handleEditUser: (userId: string, updates: Partial<Omit<User, 'password'>>) => Promise<{ success: boolean, message: string }>;
+    handleDeleteUser: (userId: string) => Promise<{ success: boolean, message: string }>;
     sessionTimeoutMinutes: number;
     setSessionTimeoutMinutes: React.Dispatch<React.SetStateAction<number>>;
     promptTimeoutMinutes: number;
@@ -27,7 +26,6 @@ export interface AuthContextValue {
     handleUpdateRolePermissions: (roleName: string, permissions: Permission[]) => { success: boolean, message: string };
     handleUpdateUserPermissions: (userId: string, permissions: Permission[]) => { success: boolean, message: string };
     getRoleLabel: (roleName: string) => string;
-    // Zarządzanie podrolami (oddziałami)
     allSubRoles: string[];
     handleAddSubRole: (name: string) => { success: boolean, message: string };
     handleDeleteSubRole: (name: string) => { success: boolean, message: string };
@@ -44,38 +42,267 @@ export const useAuth = (): AuthContextValue => {
 };
 
 export const AuthProvider: React.FC<PropsWithChildren> = ({ children }) => {
-    const [users, setUsers] = usePersistedState<User[]>('users_v2_subroles', INITIAL_USERS.map(u => ({...u, subRole: u.subRole || 'AGRO'})));
+    const [users, setUsers] = useState<User[]>([]);
     const [currentUser, setCurrentUser] = useState<User | null>(null);
-    const [sessionTimeoutMinutes, setSessionTimeoutMinutes] = usePersistedState<number>('settings_sessionTimeout_v1', DEFAULT_SETTINGS.SESSION_TIMEOUT_MINUTES);
-    const [promptTimeoutMinutes, setPromptTimeoutMinutes] = usePersistedState<number>('settings_promptTimeout_v1', DEFAULT_SETTINGS.PROMPT_TIMEOUT_MINUTES);
+    const [sessionTimeoutMinutes, setSessionTimeoutMinutes] = useState<number>(DEFAULT_SETTINGS.SESSION_TIMEOUT_MINUTES);
+    const [promptTimeoutMinutes, setPromptTimeoutMinutes] = useState<number>(DEFAULT_SETTINGS.PROMPT_TIMEOUT_MINUTES);
     
-    const [rolePermissions, setRolePermissions] = usePersistedState<Record<string, Permission[]>>('rolePermissions', DEFAULT_PERMISSIONS);
-    const [allSubRoles, setAllSubRoles] = usePersistedState<string[]>('app_subroles_list_v1', ['AGRO', 'OSIP']);
+    const [rolePermissions, setRolePermissions] = useState<Record<string, Permission[]>>({});
+    const [allSubRoles, setAllSubRoles] = useState<string[]>(['AGRO', 'OSIP']);
+    const [dbRoles, setDbRoles] = useState<any[]>([]);
 
-    const allRoles = useMemo(() => {
-        return Array.from(new Set([...PREDEFINED_ROLES, ...Object.keys(rolePermissions)]))
-            .sort((a,b) => a.localeCompare(b));
-    }, [rolePermissions]);
-
-    const handleLogin = (user: User) => setCurrentUser(user);
-    const handleLogout = () => setCurrentUser(null);
-    
-    const forcePasswordUpdate = (userId: string, newPass: string): { success: boolean; message: string, updatedUser?: User } => {
-        const foundUser = users.find(u => u.id === userId);
-        if (!foundUser) {
-            return { success: false, message: 'Nie znaleziono użytkownika.' };
+    // Funkcja pomocnicza do dekodowania base64 z obsługą UTF-8
+    const base64UrlDecode = (str: string): string => {
+        // Zamień base64url na base64
+        str = str.replace(/-/g, '+').replace(/_/g, '/');
+        // Dodaj padding jeśli potrzebny
+        while (str.length % 4) {
+            str += '=';
         }
+        // Dekoduj base64 i zamień na UTF-8
+        try {
+            // Używamy decodeURIComponent i escape dla poprawnej obsługi UTF-8
+            return decodeURIComponent(escape(atob(str)));
+        } catch (e) {
+            console.error('Błąd dekodowania base64:', e);
+            return atob(str); // Fallback na zwykły atob
+        }
+    };
 
-        const updatedUser = { 
-            ...foundUser, 
-            password: newPass, 
-            isTemporaryPassword: false, 
-            passwordLastChanged: new Date().toISOString() 
+    // Przywróć JWT token z localStorage przy starcie
+    useEffect(() => {
+        const token = localStorage.getItem('jwt_token');
+        if (token) {
+            // Sprawdzić czy token jest ważny - na podstawie `exp` claim
+            try {
+                const parts = token.split('.');
+                if (parts.length === 3) {
+                    const decodedString = base64UrlDecode(parts[1]);
+                    const decoded = JSON.parse(decodedString);
+                    if (decoded.exp && decoded.exp * 1000 > Date.now()) {
+                        // Token jest ważny, zautomatyzuj logowanie
+                        setCurrentUser({
+                            id: decoded.id,
+                            username: decoded.username,
+                            role: decoded.role as UserRole,
+                            subRole: decoded.subRole || 'AGRO',
+                            pin: decoded.pin || '',
+                            passwordLastChanged: new Date().toISOString(),
+                            permissions: [],
+                            isTemporaryPassword: false
+                        });
+                        console.log('✅ Użytkownik przywrócony z tokenu:', decoded.username);
+                    } else {
+                        localStorage.removeItem('jwt_token');
+                    }
+                }
+            } catch (e) {
+                console.log('⚠️ Błąd odczytu tokenu:', e);
+                localStorage.removeItem('jwt_token');
+            }
+        }
+    }, []);
+
+    // Pobierz użytkowników z API (bazy danych)
+    useEffect(() => {
+        const fetchUsersFromAPI = async () => {
+            try {
+                const token = localStorage.getItem('jwt_token');
+                const headers: HeadersInit = { 'Content-Type': 'application/json' };
+                if (token) {
+                    headers['Authorization'] = `Bearer ${token}`;
+                }
+
+                const response = await fetch(`${API_BASE_URL}/users`, { headers });
+                if (response.ok) {
+                    const apiUsers = await response.json();
+                    if (apiUsers && apiUsers.length > 0) {
+                        // Mapuj użytkowników z API - BEZ hasła!
+                        const mappedUsers = apiUsers.map((user: any) => ({
+                            id: user.id,
+                            username: user.username,
+                            role: (user.role || 'user') as UserRole,
+                            subRole: user.sub_role || user.subRole || 'AGRO',
+                            pin: user.pin,
+                            email: user.email,
+                            isActive: user.is_active !== undefined ? user.is_active : (user.isActive !== undefined ? user.isActive : 1),
+                            passwordLastChanged: user.password_last_changed || user.passwordLastChanged || new Date().toISOString(),
+                            permissions: user.permissions || [],
+                            isTemporaryPassword: user.is_temporary_password || false
+                        }));
+                        setUsers(mappedUsers);
+                        console.log('✅ Użytkownicy załadowani z API (baza danych):', mappedUsers.length);
+                    } else {
+                        console.log('ℹ️ API zwróciło pustą listę');
+                        setUsers([]);
+                    }
+                } else {
+                    console.log('ℹ️ Błąd API:', response.status);
+                    setUsers([]);
+                }
+            } catch (error) {
+                console.log('❌ Nie mogę się połączyć z API:', error);
+                setUsers([]);
+            }
         };
 
-        setUsers(prev => prev.map(u => u.id === userId ? updatedUser : u));
+        // Pobierz użytkowników przy starcie
+        fetchUsersFromAPI();
         
-        return { success: true, message: 'Hasło zostało zaktualizowane.', updatedUser };
+        // Pobierz role z bazy danych
+        const fetchRolesFromAPI = async () => {
+            try {
+                const response = await fetch(`${API_BASE_URL}/roles`);
+                if (response.ok) {
+                    const apiRoles = await response.json();
+                    setDbRoles(apiRoles);
+                    console.log('✅ Role pobrane z bazy:', apiRoles);
+                }
+            } catch (error) {
+                console.log('⚠️ Nie mogę pobrać ról z bazy:', error);
+            }
+        };
+        
+        fetchRolesFromAPI();
+    }, []);
+
+    const allRoles = useMemo(() => {
+        // Jeśli mamy role z bazy, użyj ich, w przeciwnym razie fallback na PREDEFINED_ROLES
+        if (dbRoles && dbRoles.length > 0) {
+            return dbRoles.map((r: any) => r.name).sort((a,b) => a.localeCompare(b));
+        }
+        return Array.from(new Set([...PREDEFINED_ROLES, ...Object.keys(rolePermissions)]))
+            .sort((a,b) => a.localeCompare(b));
+    }, [dbRoles, rolePermissions]);
+
+    // Nowe logowanie - używa JWT
+    const handleLogin = async (username: string, password: string): Promise<{ success: boolean; message: string; user?: User }> => {
+        try {
+            const response = await fetch(`${API_BASE_URL}/login`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password })
+            });
+
+            if (response.ok) {
+                const result = await response.json();
+                
+                // Zapisz JWT token
+                localStorage.setItem('jwt_token', result.token);
+                
+                // Ustaw bieżącego użytkownika
+                const user = result.user as User;
+                
+                // Pobierz uprawnienia indywidualne + z roli
+                try {
+                    console.log(`🔐 Pobieranie uprawnień dla user.id=${user.id}`);
+                    const permResponse = await fetch(`${API_BASE_URL}/permissions/${user.id}`);
+                    console.log(`🔐 Odpowiedź uprawnień: status=${permResponse.status}`);
+                    if (permResponse.ok) {
+                        const permData = await permResponse.json();
+                        console.log(`🔐 Uprawnienia z API:`, permData.permissions);
+                        user.permissions = permData.permissions as Permission[];
+                    } else {
+                        console.warn(`🔐 Błąd pobierania uprawnień, kod: ${permResponse.status}`);
+                        user.permissions = [];
+                    }
+                } catch (err) {
+                    console.warn('Błąd pobierania uprawnień:', err);
+                    user.permissions = [];
+                }
+                
+                console.log(`🔐 Finalny user z uprawnieniami:`, user);
+                
+                setCurrentUser(user);
+                
+                // Odśwież listę użytkowników z API po zalogowaniu
+                await refreshUsersFromAPI();
+                
+                console.log(`✅ Zalogowano jako ${username}`);
+                return { success: true, message: 'Zalogowano pomyślnie', user };
+            } else {
+                const error = await response.json();
+                return { success: false, message: error.error || 'Błąd logowania' };
+            }
+        } catch (error) {
+            console.log('❌ Błąd logowania:', error);
+            return { success: false, message: 'Błąd serwera' };
+        }
+    };
+
+    const handleLogout = () => {
+        localStorage.removeItem('jwt_token');
+        setCurrentUser(null);
+    };
+
+    // Zmiana hasła
+    const handleChangePassword = async (oldPassword: string, newPassword: string): Promise<{ success: boolean; message: string }> => {
+        try {
+            const token = localStorage.getItem('jwt_token');
+            if (!token) {
+                return { success: false, message: 'Nie jesteś zalogowany' };
+            }
+
+            const response = await fetch(`${API_BASE_URL}/change-password`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ oldPassword, newPassword })
+            });
+
+            if (response.ok) {
+                console.log('✅ Hasło zmienione');
+                return { success: true, message: 'Hasło zostało zmienione' };
+            } else {
+                const error = await response.json();
+                return { success: false, message: error.error || 'Błąd zmiany hasła' };
+            }
+        } catch (error) {
+            console.log('❌ Błąd zmiany hasła:', error);
+            return { success: false, message: 'Błąd serwera' };
+        }
+    };
+
+    // Wymuszenie zmiany hasła dla hasła tymczasowego (bez weryfikacji starego hasła)
+    const handleForceChangePassword = async (newPassword: string): Promise<{ success: boolean; message: string }> => {
+        try {
+            const token = localStorage.getItem('jwt_token');
+            console.log(`🔐 handleForceChangePassword: token=${token ? 'YES' : 'NO'}, newPassword="${newPassword}"`);
+            
+            if (!token) {
+                console.log('❌ handleForceChangePassword: Nie masz JWT token');
+                return { success: false, message: 'Nie jesteś zalogowany' };
+            }
+
+            console.log(`🔐 handleForceChangePassword: Wysyłam POST do /force-change-password`);
+            const response = await fetch(`${API_BASE_URL}/force-change-password`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ newPassword })
+            });
+
+            const data = await response.json();
+            console.log(`🔐 handleForceChangePassword response: ok=${response.ok}, data=`, data);
+
+            if (response.ok) {
+                console.log('✅ Hasło tymczasowe zmienione');
+                // Odśwież currentUser aby usunąć flagę isTemporaryPassword
+                if (currentUser) {
+                    setCurrentUser({ ...currentUser, isTemporaryPassword: false });
+                }
+                return { success: true, message: 'Hasło zostało zmienione' };
+            } else {
+                return { success: false, message: data.error || 'Błąd zmiany hasła' };
+            }
+        } catch (error) {
+            console.log('❌ Błąd zmiany hasła tymczasowego:', error);
+            return { success: false, message: 'Błąd serwera' };
+        }
     };
 
     const checkPermission = useCallback((permission: Permission): boolean => {
@@ -88,53 +315,170 @@ export const AuthProvider: React.FC<PropsWithChildren> = ({ children }) => {
         return currentUser.permissions?.includes(permission) || false;
     }, [currentUser]);
     
-    const handleResetPassword = (userId: string) => {
-        const foundUser = users.find(u => u.id === userId);
-        if (!foundUser) {
-            return { success: false, message: 'Nie udało się odnaleźć użytkownika do resetu.' };
+    // Reset hasła - wymaga tokenu JWT
+    const handleResetPassword = async (userId: string): Promise<{ success: boolean, message: string, tempPassword?: string }> => {
+        try {
+            const token = localStorage.getItem('jwt_token');
+            if (!token) {
+                return { success: false, message: 'Nie jesteś zalogowany' };
+            }
+
+            // Generuj tymczasowe hasło
+            const tempPassword = Math.random().toString(36).slice(-8);
+
+            const response = await fetch(`${API_BASE_URL}/users/${userId}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                    password: tempPassword,
+                    isTemporaryPassword: true,
+                    passwordLastChanged: new Date().toISOString()
+                })
+            });
+
+            if (response.ok) {
+                console.log('✅ Hasło zresetowano');
+                return { success: true, message: 'Hasło zresetowane', tempPassword };
+            } else {
+                return { success: false, message: 'Błąd resetowania hasła' };
+            }
+        } catch (error) {
+            console.log('❌ Błąd resetowania hasła:', error);
+            return { success: false, message: 'Błąd serwera' };
         }
-
-        const tempPassword = Math.random().toString(36).slice(-8);
-        
-        setUsers(prev => prev.map(u => u.id === userId ? { 
-            ...u, 
-            isTemporaryPassword: true, 
-            password: tempPassword,
-            passwordLastChanged: new Date().toISOString() 
-        } : u));
-
-        return { success: true, message: 'Hasło zostało zresetowane pomyślnie.', tempPassword };
     };
     
-    const handleAddUser = (userData: Omit<User, 'id' | 'passwordLastChanged' | 'permissions'>) => {
-        const newUser: User = {
-            id: `u-${Date.now()}`,
-            ...userData,
-            isTemporaryPassword: true,
-            passwordLastChanged: new Date().toISOString(),
-            permissions: rolePermissions[userData.role] || [],
-        };
-        setUsers(prev => [...prev, newUser]);
-        return { success: true, message: 'Użytkownik dodany.' };
-    };
-
-    const handleEditUser = (userId: string, updates: Partial<User>) => {
-        setUsers(prev => prev.map(u => {
-            if (u.id === userId) {
-                const updatedUser = { ...u, ...updates };
-                if (updates.role && u.role !== updates.role) {
-                    updatedUser.permissions = rolePermissions[updates.role] || DEFAULT_CUSTOM_PERMISSIONS;
-                }
-                return updatedUser;
+    // Funkcja do odświeżenia użytkowników z API
+    const refreshUsersFromAPI = async () => {
+        try {
+            const token = localStorage.getItem('jwt_token');
+            const headers: HeadersInit = { 'Content-Type': 'application/json' };
+            if (token) {
+                headers['Authorization'] = `Bearer ${token}`;
             }
-            return u;
-        }));
-        return { success: true, message: 'Dane użytkownika zaktualizowane.' };
+
+            const response = await fetch(`${API_BASE_URL}/users`, { headers });
+            if (response.ok) {
+                const apiUsers = await response.json();
+                if (apiUsers && apiUsers.length > 0) {
+                    const mappedUsers = apiUsers.map((user: any) => ({
+                        id: user.id,
+                        username: user.username,
+                        role: (user.role || 'user') as UserRole,
+                        subRole: user.sub_role || user.subRole || 'AGRO',
+                        pin: user.pin,
+                        email: user.email,
+                        isActive: user.is_active !== undefined ? user.is_active : 1,
+                        passwordLastChanged: user.password_last_changed || new Date().toISOString(),
+                        permissions: user.permissions || [],
+                        isTemporaryPassword: user.is_temporary_password || false
+                    }));
+                    setUsers(mappedUsers);
+                    console.log('🔄 Użytkownicy odświeżeni z API:', mappedUsers.length);
+                }
+            }
+        } catch (error) {
+            console.log('⚠️ Błąd odświeżania użytkowników z API:', error);
+        }
+    };
+    
+    const handleAddUser = async (userData: Omit<User, 'id' | 'passwordLastChanged' | 'permissions' | 'password'>) => {
+        try {
+            const token = localStorage.getItem('jwt_token');
+            if (!token) {
+                return { success: false, message: 'Nie jesteś zalogowany' };
+            }
+
+            // Generuj tymczasowe hasło
+            const tempPassword = Math.random().toString(36).slice(-8);
+
+            const response = await fetch(`${API_BASE_URL}/users`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                    username: userData.username,
+                    password: tempPassword,
+                    role: userData.role,
+                    subRole: userData.subRole || 'AGRO',
+                    pin: userData.pin
+                })
+            });
+            
+            if (response.ok) {
+                const result = await response.json();
+                console.log('✅ Użytkownik dodany do bazy danych:', result);
+                await refreshUsersFromAPI();
+                return { success: true, message: 'Użytkownik dodany do bazy danych.' };
+            } else {
+                return { success: false, message: 'Błąd dodawania użytkownika' };
+            }
+        } catch (error) {
+            console.log('❌ Błąd API:', error);
+            return { success: false, message: 'Błąd serwera' };
+        }
     };
 
-    const handleDeleteUser = (userId: string) => {
-        setUsers(prev => prev.filter(u => u.id !== userId));
-        return { success: true, message: 'Użytkownik usunięty.' };
+    const handleEditUser = async (userId: string, updates: Partial<Omit<User, 'password'>>) => {
+        try {
+            const token = localStorage.getItem('jwt_token');
+            if (!token) {
+                return { success: false, message: 'Nie jesteś zalogowany' };
+            }
+
+            const response = await fetch(`${API_BASE_URL}/users/${userId}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify(updates)
+            });
+            
+            if (response.ok) {
+                console.log('✅ Użytkownik zaktualizowany w API');
+                await refreshUsersFromAPI();
+                return { success: true, message: 'Dane użytkownika zaktualizowane.' };
+            } else {
+                return { success: false, message: 'Błąd aktualizacji użytkownika' };
+            }
+        } catch (error) {
+            console.log('❌ Błąd API:', error);
+            return { success: false, message: 'Błąd serwera' };
+        }
+    };
+
+    const handleDeleteUser = async (userId: string) => {
+        try {
+            const token = localStorage.getItem('jwt_token');
+            if (!token) {
+                return { success: false, message: 'Nie jesteś zalogowany' };
+            }
+
+            const response = await fetch(`${API_BASE_URL}/users/${userId}`, {
+                method: 'DELETE',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+            
+            if (response.ok) {
+                console.log('✅ Użytkownik usunięty z bazy danych');
+                await refreshUsersFromAPI();
+                return { success: true, message: 'Użytkownik usunięty z bazy danych.' };
+            } else {
+                return { success: false, message: 'Błąd usuwania użytkownika' };
+            }
+        } catch (error) {
+            console.log('❌ Błąd API:', error);
+            return { success: false, message: 'Błąd serwera' };
+        }
     };
 
     const handleAddNewRole = (roleName: string) => {
@@ -144,7 +488,7 @@ export const AuthProvider: React.FC<PropsWithChildren> = ({ children }) => {
         }
         setRolePermissions(prev => ({
             ...prev,
-            [normalizedRoleName]: DEFAULT_CUSTOM_PERMISSIONS
+            [normalizedRoleName]: []
         }));
         return { success: true, message: `Rola '${normalizedRoleName}' została dodana.` };
     };
@@ -172,23 +516,71 @@ export const AuthProvider: React.FC<PropsWithChildren> = ({ children }) => {
         return { success: true, message: `Uprawnienia dla roli '${roleName}' zaktualizowane.` };
     };
 
-    const handleUpdateUserPermissions = (userId: string, newPermissions: Permission[]) => {
-        let success = false;
-        setUsers(prevUsers => {
-            const userExists = prevUsers.some(u => u.id === userId);
-            if (!userExists) return prevUsers;
-
-            success = true;
-            return prevUsers.map(user => 
-                user.id === userId ? { ...user, permissions: newPermissions } : user
-            );
-        });
+    const handleUpdateUserPermissions = async (userId: string, newPermissions: Permission[]) => {
+        console.log(`🔐 handleUpdateUserPermissions wywoływany: userId=${userId} (type: ${typeof userId}), permissions=${newPermissions.length}`);
+        console.log(`🔐 currentUser.id=${currentUser?.id} (type: ${typeof currentUser?.id})`);
+        const token = localStorage.getItem('jwt_token');
+        console.log(`🔐 Token z localStorage: ${token ? 'OK' : 'BRAK'}`);
         
-        if (currentUser?.id === userId) {
-            setCurrentUser(prev => prev ? { ...prev, permissions: newPermissions } : null);
-        }
+        try {
+            // 1. Wyślij uprawnienia do API
+            console.log(`📤 Wysyłam POST do ${API_BASE_URL}/user-permissions`);
+            const response = await fetch(`${API_BASE_URL}/user-permissions`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token || ''}`
+                },
+                body: JSON.stringify({
+                    userId,
+                    permissions: newPermissions
+                })
+            });
 
-        return { success, message: success ? "Uprawnienia zaktualizowane." : "Nie znaleziono użytkownika." };
+            console.log(`📥 Odpowiedź: ${response.status} ${response.statusText}`);
+            if (!response.ok) {
+                console.error('Błąd zapisywania uprawnień:', response.statusText);
+                return { success: false, message: 'Błąd zapisywania uprawnień na serwerze' };
+            }
+
+            // 2. Pobierz aktualne uprawnienia z API (tylko indywidualne, bez roli)
+            console.log(`📤 Pobieram uprawnienia z ${API_BASE_URL}/user-permissions/${userId}`);
+            const permResponse = await fetch(`${API_BASE_URL}/user-permissions/${userId}`, {
+                cache: 'no-cache',
+                headers: {
+                    'Cache-Control': 'no-cache, no-store, must-revalidate',
+                    'Pragma': 'no-cache'
+                }
+            });
+            if (permResponse.ok) {
+                const permData = await permResponse.json();
+                const updatedPermissions = permData.permissions as Permission[];
+                console.log(`📥 Pobrane uprawnienia dla userId=${userId}:`, updatedPermissions);
+
+                // 3. Aktualizuj state lokalnie - TYLKO dla edytowanego użytkownika (JEDEN RAZ)
+                setUsers(prevUsers => 
+                    prevUsers.map(user => 
+                        String(user.id) === String(userId) 
+                            ? { ...user, permissions: updatedPermissions } 
+                            : user
+                    )
+                );
+                
+                // Aktualizuj currentUser TYLKO jeśli to ten sam użytkownik
+                if (String(currentUser?.id) === String(userId)) {
+                    console.log(`🔄 Aktualizuję uprawnienia dla zalogowanego użytkownika`);
+                    setCurrentUser(prev => prev ? { ...prev, permissions: updatedPermissions } : null);
+                }
+
+                console.log(`✅ Uprawnienia dla użytkownika ${userId} zostały zaktualizowane lokalnie`);
+                return { success: true, message: 'Uprawnienia zostały zapisane' };
+            }
+
+            return { success: true, message: 'Uprawnienia zostały zapisane' };
+        } catch (err) {
+            console.error('Błąd:', err);
+            return { success: false, message: 'Błąd połączenia z serwerem' };
+        }
     };
 
     const handleAddSubRole = (name: string) => {
@@ -206,10 +598,20 @@ export const AuthProvider: React.FC<PropsWithChildren> = ({ children }) => {
     };
     
     const getRoleLabel = useCallback((roleName: string): string => {
+        // Najpierw spróbuj znaleźć w rolach z bazy
+        if (dbRoles && dbRoles.length > 0) {
+            const dbRole = dbRoles.find((r: any) => r.name === roleName);
+            if (dbRole) {
+                return dbRole.label;
+            }
+        }
+        
+        // Fallback na tabelę switch
         switch (roleName) {
             case 'admin': return 'Administrator';
             case 'planista': return 'Planista';
             case 'magazynier': return 'Magazynier';
+            case 'kierownik_magazynu': return 'Kierownik Magazynu';
             case 'kierownik magazynu': return 'Kierownik Magazynu';
             case 'lab': return 'Laborant';
             case 'operator_psd': return 'Operator PSD';
@@ -220,14 +622,15 @@ export const AuthProvider: React.FC<PropsWithChildren> = ({ children }) => {
             case 'lider': return 'Lider';
             default: return roleName.charAt(0).toUpperCase() + roleName.slice(1).replace(/_/g, ' ');
         }
-    }, []);
+    }, [dbRoles]);
 
     const value: AuthContextValue = {
         currentUser,
         users,
         handleLogin,
         handleLogout,
-        forcePasswordUpdate,
+        handleChangePassword,
+        handleForceChangePassword,
         checkPermission,
         handleResetPassword,
         handleAddUser,

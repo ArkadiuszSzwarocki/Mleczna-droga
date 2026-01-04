@@ -134,7 +134,7 @@ export const getNavItemsDefinition = (
             { key: 'view-prod-stock', view: View.ProductionStock, label: 'Surowce w Produkcji', hidden: !isAdmin && isPsdOperator },
             { key: 'view-curr-prod', view: View.CurrentProductionRun, label: 'Linia AGRO', permission: Permission.EXECUTE_PRODUCTION_AGRO, hidden: !isAdmin && isPsdOperator },
             { key: 'view-lpsd-prod', view: View.LPSD_PRODUCTION, label: 'Linia PSD', permission: Permission.EXECUTE_PRODUCTION_PSD },
-            { key: 'view-mixing-worker', view: View.MIXING_WORKER, label: 'Miksowanie', hidden: !isAdmin && isPsdOperator },
+            { key: 'view-mixing-worker', view: View.MIXING_WORKER, label: 'Miksowanie', permission: Permission.EXECUTE_MIXING },
             { key: 'view-pkg-operator', view: View.PackagingOperator, label: 'Pakowanie / Rejestracja', allowedRoles: ['admin', 'magazynier', 'operator_agro', 'planista', 'boss', 'operator_procesu', 'operator_psd'] },
             { key: 'view-manage-adj', view: View.ManageAdjustments, label: 'Dosypki / Korekty', allowedRoles: ['admin', 'magazynier', 'operator_psd', 'operator_agro', 'planista', 'lab'] },
         ]

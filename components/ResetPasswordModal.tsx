@@ -23,19 +23,22 @@ const ResetPasswordModal: React.FC<ResetPasswordModalProps> = ({ isOpen, onClose
   useEffect(() => {
     if (isOpen && user) {
       // Wywołujemy reset hasła przy otwarciu modala
-      const result = handleResetPassword(user.id);
-      if (result.success) {
-        setTempPassword(result.tempPassword!);
-        setFeedback({ 
-            type: 'success', 
-            message: `Hasło dla użytkownika ${user.username} zostało zresetowane pomyślnie.` 
-        });
-      } else {
-        setFeedback({ type: 'error', message: result.message });
-      }
+      const resetPassword = async () => {
+        const result = await handleResetPassword(user.id);
+        if (result.success) {
+          setTempPassword(result.tempPassword!);
+          setFeedback({ 
+              type: 'success', 
+              message: `Hasło dla użytkownika ${user.username} zostało zresetowane pomyślnie.` 
+          });
+        } else {
+          setFeedback({ type: 'error', message: result.message });
+        }
+      };
+      resetPassword();
       setCopied(false);
     }
-  }, [isOpen, user?.id]); // Reaguj na zmianę usera lub otwarcie
+  }, [isOpen, user?.id, handleResetPassword]); // Reaguj na zmianę usera lub otwarcie
   
   if (!isOpen) return null;
 

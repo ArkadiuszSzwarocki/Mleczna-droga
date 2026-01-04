@@ -14,7 +14,6 @@ import Button from './Button';
 import Input from './Input';
 import Textarea from './Textarea';
 import { useAuth } from './contexts/AuthContext';
-import { usePersistedState } from '../src/usePersistedState';
 
 type Instruction = {
     id: string;
@@ -208,7 +207,7 @@ const InstructionItem: React.FC<{ instruction: Instruction }> = ({ instruction }
 
 const InstructionsPage: React.FC = () => {
     const { currentUser } = useAuth();
-    const [instructions, setInstructions] = usePersistedState<Instruction[]>('app_instructions_v5', DEFAULT_INSTRUCTIONS);
+    const [instructions, setInstructions] = useState<Instruction[]>(DEFAULT_INSTRUCTIONS);
     const [isEditing, setIsEditing] = useState(false);
     const [editForm, setEditForm] = useState<Instruction[]>([]);
     const canEdit = ['admin', 'boss'].includes(currentUser?.role || '');

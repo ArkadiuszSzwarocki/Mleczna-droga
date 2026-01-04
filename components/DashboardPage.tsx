@@ -7,7 +7,6 @@ import Button from './Button';
 import UserCircleIcon from './icons/UserCircleIcon';
 import InformationCircleIcon from './icons/InformationCircleIcon';
 import CustomizeDashboardModal, { WidgetDefinition } from './CustomizeDashboardModal';
-import { usePersistedState } from '../src/usePersistedState';
 import AdjustmentsHorizontalIcon from './icons/AdjustmentsHorizontalIcon';
 import { StatCard } from './StatCard';
 
@@ -91,7 +90,7 @@ const UserDashboard: React.FC = () => {
 
 const DashboardPage: React.FC = () => {
     const { currentUser } = useAuth();
-    const [hiddenWidgets, setHiddenWidgets] = usePersistedState<string[]>(`dashboard_hidden_widgets_${currentUser?.role}_v1`, []);
+    const [hiddenWidgets, setHiddenWidgets] = useState<string[]>([]);
     const [isCustomizeModalOpen, setIsCustomizeModalOpen] = useState(false);
     
     const availableWidgets = useMemo(() => {

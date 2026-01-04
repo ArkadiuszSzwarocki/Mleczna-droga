@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { getNavItemsDefinition } from '../src/navigation';
 import { View, User, Permission } from '../types';
 import QrCodeIcon from './icons/QrCodeIcon';
@@ -124,7 +124,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         currentUser?.role || '', 
         currentUser?.subRole || 'AGRO'
     ), 
-  [onOpenFeedbackModal, isInventoryActive, currentUser]);
+  [onOpenFeedbackModal, isInventoryActive, currentUser, currentUser?.permissions]);
 
   const handleItemClick = (view: number) => {
     handleSetView(view as View);
@@ -133,7 +133,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     }
   };
 
-  const checkPermission = (item: any) => {
+  const checkPermission = useCallback((item: any) => {
     if (item.hidden) return false;
     if (item.allowedRoles && (!currentUser || !item.allowedRoles.includes(currentUser.role))) {
         return false;
@@ -142,7 +142,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         return false;
     }
     return true; 
-  };
+  }, [currentUser, hasPermission]);
   
   return (
       <aside

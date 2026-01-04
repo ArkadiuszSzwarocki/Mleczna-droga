@@ -17,22 +17,24 @@ interface ForcePasswordChangeModalProps {
 }
 
 const ForcePasswordChangeModal: React.FC<ForcePasswordChangeModalProps> = ({ isOpen, user, onSuccess, reason, onClose }) => {
-  const { forcePasswordUpdate } = useAuth();
+  const { handleForceChangePassword } = useAuth();
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [errors, setErrors] = useState<{ newPassword?: string; confirmPassword?: string; form?: string }>({});
   const [success, setSuccess] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
   if (!isOpen) {
     return null;
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrors({});
     setSuccess(null);
+    setLoading(true);
 
     const validationErrors: { newPassword?: string; confirmPassword?: string; form?: string } = {};
 
@@ -42,24 +44,25 @@ const ForcePasswordChangeModal: React.FC<ForcePasswordChangeModalProps> = ({ isO
     if (newPassword !== confirmPassword) {
       validationErrors.confirmPassword = 'Podane hasła nie są identyczne.';
     }
-    if (user.isTemporaryPassword && newPassword === user.password) {
-      validationErrors.newPassword = 'Nowe hasło musi być inne niż hasło tymczasowe.';
-    }
 
     if (Object.keys(validationErrors).length > 0) {
       setErrors(validationErrors);
+      setLoading(false);
       return;
     }
 
-    const result = forcePasswordUpdate(user.id, newPassword);
+    // Dla hasła tymczasowego używamy handleForceChangePassword (bez weryfikacji starego hasła)
+    const result = await handleForceChangePassword(newPassword);
 
-    if (result.success && result.updatedUser) {
+    if (result.success) {
       setSuccess('Hasło zostało zmienione. Zaraz nastąpi zalogowanie...');
       setTimeout(() => {
-        onSuccess(result.updatedUser!);
+        // Po zmianie hasła, user nie ma już isTemporaryPassword
+        onSuccess({ ...user, isTemporaryPassword: false });
       }, 1500);
     } else {
       setErrors({ form: result.message });
+      setLoading(false);
     }
   };
   
@@ -105,6 +108,7 @@ const ForcePasswordChangeModal: React.FC<ForcePasswordChangeModalProps> = ({ isO
                 rightIcon={showNewPassword ? <EyeSlashIcon className="h-5 w-5" /> : <EyeIcon className="h-5 w-5" />}
                 onRightIconClick={() => setShowNewPassword(!showNewPassword)}
                 error={errors.newPassword}
+                disabled={loading}
             />
             <Input
                 label="Potwierdź Nowe Hasło"
@@ -117,13 +121,14 @@ const ForcePasswordChangeModal: React.FC<ForcePasswordChangeModalProps> = ({ isO
                 rightIcon={showConfirmPassword ? <EyeSlashIcon className="h-5 w-5" /> : <EyeIcon className="h-5 w-5" />}
                 onRightIconClick={() => setShowConfirmPassword(!showConfirmPassword)}
                 error={errors.confirmPassword}
+                disabled={loading}
             />
             <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-3 pt-2">
-                <Button type="button" variant="secondary" onClick={onClose} className="w-full sm:w-auto">
+                <Button type="button" variant="secondary" onClick={onClose} className="w-full sm:w-auto" disabled={loading}>
                     Anuluj
                 </Button>
-                <Button type="submit" className="w-full sm:w-auto">
-                    Ustaw Nowe Hasło i Zaloguj
+                <Button type="submit" className="w-full sm:w-auto" disabled={loading}>
+                    {loading ? 'Zmiana hasła...' : 'Ustaw Nowe Hasło i Zaloguj'}
                 </Button>
             </div>
             </form>

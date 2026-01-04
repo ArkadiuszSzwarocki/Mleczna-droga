@@ -2,6 +2,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useAuth } from './contexts/AuthContext';
 import { Permission, User } from '../types';
+import { API_BASE_URL } from '../constants';
 import Button from './Button';
 import Alert from './Alert';
 import Input from './Input';
@@ -91,13 +92,35 @@ const UserPermissionsPage: React.FC = () => {
         users.find(u => u.id === selectedUserId), 
     [users, selectedUserId]);
 
-    // Inicjalizacja draftu po wyborze użytkownika
+    // Pobierz uprawnienia TYLKO z API/bazy danych, nigdy z local state
     useEffect(() => {
-        if (selectedUser) {
-            setDraftPermissions([...(selectedUser.permissions || [])]);
+        if (selectedUserId) {
+            console.log('👤 Pobieranie uprawnień dla użytkownika ID:', selectedUserId);
+            const fetchPermissions = async () => {
+                try {
+                    const response = await fetch(`${API_BASE_URL}/user-permissions/${selectedUserId}`, {
+                        cache: 'no-cache',
+                        headers: {
+                            'Cache-Control': 'no-cache, no-store, must-revalidate'
+                        }
+                    });
+                    if (response.ok) {
+                        const data = await response.json();
+                        console.log('📥 Pobrane uprawnienia z bazy danych (API):', data.permissions);
+                        setDraftPermissions([...(data.permissions || [])]);
+                    } else {
+                        console.error('❌ Błąd pobierania uprawnień, status:', response.status);
+                        setDraftPermissions([]);
+                    }
+                } catch (err) {
+                    console.error('❌ Błąd połączenia z API:', err);
+                    setDraftPermissions([]);
+                }
+            };
+            fetchPermissions();
             setFeedback(null);
         }
-    }, [selectedUser]);
+    }, [selectedUserId]); // Zależy TYLKO od selectedUserId, zawsze pobiera z API
 
     const handlePermissionToggle = (permission: Permission) => {
         if (!hasManagePermissionsPermission) return;
@@ -108,9 +131,10 @@ const UserPermissionsPage: React.FC = () => {
         );
     };
 
-    const handleSave = () => {
+    const handleSave = async () => {
         if (!selectedUserId) return;
-        const result = handleUpdateUserPermissions(selectedUserId, draftPermissions);
+        console.log('💾 Zapisuję uprawnienia do bazy danych:', draftPermissions);
+        const result = await handleUpdateUserPermissions(selectedUserId, draftPermissions);
         setFeedback({ 
             type: result.success ? 'success' : 'error', 
             message: result.message 

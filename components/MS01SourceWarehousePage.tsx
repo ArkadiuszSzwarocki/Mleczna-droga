@@ -5,7 +5,9 @@ import { useWarehouseContext } from './contexts/WarehouseContext';
 import { useUIContext } from './contexts/UIContext';
 import PalletTile from './PalletTile';
 import Input from './Input';
+import Button from './Button';
 import SearchIcon from './icons/SearchIcon';
+import ArrowPathIcon from './icons/ArrowPathIcon';
 import WarehouseIcon from './icons/WarehouseIcon';
 import { useSortableData } from '../src/useSortableData';
 import SortableHeader from './SortableHeader';
@@ -17,9 +19,19 @@ import ClipboardListIcon from './icons/ClipboardListIcon';
 import DocumentTextIcon from './icons/DocumentTextIcon';
 
 export const MS01SourceWarehousePage: React.FC = () => {
-    const { rawMaterialsLogList } = useWarehouseContext();
+    const { rawMaterialsLogList, refreshRawMaterials } = useWarehouseContext();
     const { modalHandlers } = useUIContext();
     const [searchTerm, setSearchTerm] = useState('');
+    const [isRefreshing, setIsRefreshing] = useState(false);
+
+    const handleRefresh = async () => {
+        setIsRefreshing(true);
+        try {
+            await refreshRawMaterials();
+        } finally {
+            setIsRefreshing(false);
+        }
+    };
 
     const itemsInLocation = useMemo(() =>
         (rawMaterialsLogList || []).filter(item => item.currentLocation === SOURCE_WAREHOUSE_ID_MS01),
@@ -53,12 +65,25 @@ export const MS01SourceWarehousePage: React.FC = () => {
 
     return (
         <div className="bg-white dark:bg-secondary-800 shadow-xl rounded-lg h-full flex flex-col">
-            <header className="p-4 md:px-6 py-3 flex-shrink-0 border-b dark:border-secondary-700 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                <h2 className="text-xl md:text-2xl font-semibold text-primary-700 dark:text-primary-300 break-words">
-                    Magazyn Główny ({SOURCE_WAREHOUSE_ID_MS01})
-                </h2>
-                <div className="w-full sm:w-auto sm:max-w-xs">
-                    <Input label="" id="ms01-pallets-search" placeholder="Szukaj palet..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} icon={<SearchIcon className="h-5 w-5 text-gray-400" />} />
+            <header className="p-4 md:px-6 py-3 flex-shrink-0 border-b dark:border-secondary-700">
+                <div className="flex flex-col gap-3 mb-3">
+                    <h2 className="text-xl md:text-2xl font-semibold text-primary-700 dark:text-primary-300 break-words">
+                        Magazyn Główny ({SOURCE_WAREHOUSE_ID_MS01})
+                    </h2>
+                </div>
+                <div className="flex gap-2 items-center flex-wrap">
+                    <Button
+                        onClick={handleRefresh}
+                        disabled={isRefreshing}
+                        variant="secondary"
+                        className="h-10 px-4 whitespace-nowrap"
+                        leftIcon={<ArrowPathIcon className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />}
+                    >
+                        {isRefreshing ? 'Odświeżanie...' : 'Odśwież'}
+                    </Button>
+                    <div className="flex-grow min-w-xs max-w-xs">
+                        <Input label="" id="ms01-pallets-search" placeholder="Szukaj palet..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} icon={<SearchIcon className="h-5 w-5 text-gray-400" />} />
+                    </div>
                 </div>
             </header>
             <div className="flex-grow overflow-auto scrollbar-hide p-4">

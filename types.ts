@@ -168,7 +168,10 @@ export enum Permission {
   MANAGE_PALLET_LOCK = 'manage_pallet_lock',
   EXTEND_EXPIRY_DATE = 'extend_expiry_date',
   PLAN_INTERNAL_TRANSFERS = 'plan_internal_transfers',
-  MANAGE_INTERNAL_TRANSFERS = 'manage_internal_transfers'
+  MANAGE_INTERNAL_TRANSFERS = 'manage_internal_transfers',
+  MANAGE_RECIPES = 'manage_recipes',
+  VIEW_TRACEABILITY = 'view_traceability',
+  MANAGE_SUPPLIERS_CUSTOMERS = 'manage_suppliers_customers'
 }
 
 export type UserRole = 'admin' | 'planista' | 'magazynier' | 'kierownik magazynu' | 'lab' | 'operator_psd' | 'operator_agro' | 'operator_procesu' | 'user' | 'boss' | 'lider' | string;
@@ -176,10 +179,11 @@ export type UserRole = 'admin' | 'planista' | 'magazynier' | 'kierownik magazynu
 export interface User {
   id: string;
   username: string;
-  password?: string;
   role: UserRole;
   subRole: string; 
   pin?: string;
+  email?: string;
+  isActive?: boolean | number;
   passwordLastChanged?: string;
   isTemporaryPassword?: boolean;
   permissions?: Permission[];

@@ -1,23 +1,20 @@
 
 import { User, RawMaterialLogEntry, FinishedGoodItem, Delivery, ProductionRun, PsdTask, MixingTask, DispatchOrder, AdjustmentOrder, PackagingMaterialLogEntry, UserRole, PsdBatch, Permission } from './types';
-import { DEFAULT_PERMISSIONS } from '../constants';
 
-// FIX: Added missing required 'subRole' property to initial users to resolve type mismatch with User interface.
+// FIX: Hasła są teraz przechowywane TYLKO w bazie danych, zahaszone bcryptem.
+// Pola password usunięte z INITIAL_USERS. Logowanie odbywa się przez /api/login endpoint.
 export const INITIAL_USERS: User[] = [
-  { id: 'u-1', username: 'admin', password: 'password', role: 'admin' as UserRole, subRole: 'AGRO', pin: '1234', passwordLastChanged: new Date().toISOString() },
-  { id: 'u-2', username: 'planista', password: 'password', role: 'planista' as UserRole, subRole: 'AGRO', pin: '1111', passwordLastChanged: new Date().toISOString() },
-  { id: 'u-3', username: 'magazynier', password: 'password', role: 'magazynier' as UserRole, subRole: 'AGRO', pin: '2222', passwordLastChanged: new Date().toISOString() },
-  { id: 'u-4', username: 'kierownik', password: 'password', role: 'kierownik magazynu' as UserRole, subRole: 'AGRO', pin: '3333', passwordLastChanged: new Date().toISOString() },
-  { id: 'u-5', username: 'lab', password: 'password', role: 'lab' as UserRole, subRole: 'AGRO', pin: '4444', passwordLastChanged: new Date().toISOString() },
-  { id: 'u-6', username: 'operator_psd', password: 'password', role: 'operator_psd' as UserRole, subRole: 'AGRO', pin: '5555', passwordLastChanged: new Date().toISOString() },
-  { id: 'u-8', username: 'operator_agro', password: 'password', role: 'operator_agro' as UserRole, subRole: 'AGRO', pin: '6666', passwordLastChanged: new Date().toISOString() },
-  { id: 'u-7', username: 'user', password: 'password', role: 'user' as UserRole, subRole: 'AGRO', pin: '0000', passwordLastChanged: new Date().toISOString() },
-  { id: 'u-9', username: 'operator_procesu_1', password: 'password', role: 'operator_procesu' as UserRole, subRole: 'AGRO', pin: '7777', passwordLastChanged: new Date().toISOString() },
-  { id: 'u-10', username: 'operator_procesu_2', password: 'password', role: 'operator_procesu' as UserRole, subRole: 'AGRO', pin: '8888', passwordLastChanged: new Date().toISOString() },
-].map(user => ({
-  ...user,
-  permissions: DEFAULT_PERMISSIONS[user.role as keyof typeof DEFAULT_PERMISSIONS] || [],
-}));
+  { id: 'u-1', username: 'admin', role: 'admin' as UserRole, subRole: 'AGRO', pin: '1234', passwordLastChanged: new Date().toISOString(), permissions: [] },
+  { id: 'u-2', username: 'planista', role: 'planista' as UserRole, subRole: 'AGRO', pin: '1111', passwordLastChanged: new Date().toISOString(), permissions: [] },
+  { id: 'u-3', username: 'magazynier', role: 'magazynier' as UserRole, subRole: 'AGRO', pin: '2222', passwordLastChanged: new Date().toISOString(), permissions: [] },
+  { id: 'u-4', username: 'kierownik', role: 'kierownik magazynu' as UserRole, subRole: 'AGRO', pin: '3333', passwordLastChanged: new Date().toISOString(), permissions: [] },
+  { id: 'u-5', username: 'lab', role: 'lab' as UserRole, subRole: 'AGRO', pin: '4444', passwordLastChanged: new Date().toISOString(), permissions: [] },
+  { id: 'u-6', username: 'operator_psd', role: 'operator_psd' as UserRole, subRole: 'AGRO', pin: '5555', passwordLastChanged: new Date().toISOString(), permissions: [] },
+  { id: 'u-8', username: 'operator_agro', role: 'operator_agro' as UserRole, subRole: 'AGRO', pin: '6666', passwordLastChanged: new Date().toISOString(), permissions: [] },
+  { id: 'u-7', username: 'user', role: 'user' as UserRole, subRole: 'AGRO', pin: '0000', passwordLastChanged: new Date().toISOString(), permissions: [] },
+  { id: 'u-9', username: 'operator_procesu_1', role: 'operator_procesu' as UserRole, subRole: 'AGRO', pin: '7777', passwordLastChanged: new Date().toISOString(), permissions: [] },
+  { id: 'u-10', username: 'operator_procesu_2', role: 'operator_procesu' as UserRole, subRole: 'AGRO', pin: '8888', passwordLastChanged: new Date().toISOString(), permissions: [] },
+];
 
 
 // Helper function to generate date-based IDs for finished goods

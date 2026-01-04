@@ -11,9 +11,10 @@ export const getDaysInMonth = (month: number, year: number): number => {
 
 /**
  * Generuje 18-cyfrowy identyfikator palety (format SSCC-podobny).
+ * Liczony od daty 1982-06-07 w milisekundach.
  */
 export const generate18DigitId = (): string => {
-    const epoch1982 = new Date('1982-01-01T00:00:00Z').getTime();
+    const epoch1982 = new Date('1982-06-07T00:00:00Z').getTime();
     const diff = Math.max(0, Date.now() - epoch1982);
     const base = `${diff}`; 
     const needed = 18 - base.length;

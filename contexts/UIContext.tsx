@@ -1,6 +1,5 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useMemo } from 'react';
-import { usePersistedState } from '../../src/usePersistedState';
 import { View, User, Recipe, ProductionRun, PsdTask, RawMaterialLogEntry, FinishedGoodItem, CombinedSearchResult, AppNotification, ExpiringPalletInfo, PackagingMaterialLogEntry, DispatchOrder, MixingTask, InternalTransferOrder, Document, AdjustmentOrder, Delivery, PrinterDef } from '../../types';
 import { ALL_NAV_DEFINITIONS } from '../../src/navigation';
 import { getBlockInfo, getExpiryStatus, getFinishedGoodStatusLabel } from '../../src/utils';
@@ -85,12 +84,12 @@ export const useUIContext = () => {
 };
 
 export const UIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-    const [theme, setThemeState] = usePersistedState<'light' | 'dark' | 'system'>('app_settings_theme_v1', 'system');
-    const [sidebarPosition, setSidebarPosition] = usePersistedState<'left' | 'right'>('app_settings_sidebar_pos_v1', 'left');
-    const [printServerUrl, setPrintServerUrl] = usePersistedState<string>('settings_printServerUrl_v1', DEFAULT_PRINT_SERVER_URL);
-    const [notificationServerUrl, setNotificationServerUrl] = usePersistedState<string>('settings_notificationServerUrl_v1', DEFAULT_NOTIFICATION_SERVER_URL);
+    const [theme, setThemeState] = useState<'light' | 'dark' | 'system'>('system');
+    const [sidebarPosition, setSidebarPosition] = useState<'left' | 'right'>('left');
+    const [printServerUrl, setPrintServerUrl] = useState<string>(DEFAULT_PRINT_SERVER_URL);
+    const [notificationServerUrl, setNotificationServerUrl] = useState<string>(DEFAULT_NOTIFICATION_SERVER_URL);
     
-    const [printers, setPrinters] = usePersistedState<PrinterDef[]>('app_settings_printers_v1', INITIAL_PRINTERS);
+    const [printers, setPrinters] = useState<PrinterDef[]>(INITIAL_PRINTERS);
     
     useEffect(() => {
         setPrinters(currentPrinters => {
@@ -128,11 +127,11 @@ export const UIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     
     const [currentView, setCurrentView] = useState<View>(View.Dashboard);
     const [viewParams, setViewParams] = useState<any>(null);
-    const [navHistory, setNavHistory] = usePersistedState<{ view: View, params: any }[]>('navHistory', [{ view: View.Dashboard, params: null }]);
-    const [navIndex, setNavIndex] = usePersistedState<number>('navIndex', 0);
+    const [navHistory, setNavHistory] = useState<{ view: View, params: any }[]>([{ view: View.Dashboard, params: null }]);
+    const [navIndex, setNavIndex] = useState<number>(0);
     
-    const [readNotificationIds, setReadNotificationIds] = usePersistedState<string[]>('read_notifications_v2', []);
-    const [deletedNotificationIds, setDeletedNotificationIds] = usePersistedState<string[]>('deleted_notifications_v1', []);
+    const [readNotificationIds, setReadNotificationIds] = useState<string[]>([]);
+    const [deletedNotificationIds, setDeletedNotificationIds] = useState<string[]>([]);
     const [recentlySplitPalletIds, setRecentlySplitPalletIds] = useState<string[]>([]);
     const [dismissedPopupIds, setDismissedPopupIds] = useState(new Set<string>());
     

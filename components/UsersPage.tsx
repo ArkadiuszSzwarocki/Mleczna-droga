@@ -33,9 +33,9 @@ const UsersPage: React.FC = () => {
         modalHandlers.openResetPasswordModal(user);
     };
 
-    const confirmDeleteUser = () => {
+    const confirmDeleteUser = async () => {
         if (userToDelete) {
-            const result = handleDeleteUser(userToDelete.id);
+            const result = await handleDeleteUser(userToDelete.id);
             setFeedback({ type: result.success ? 'success' : 'error', message: result.message });
             setUserToDelete(null);
         }
