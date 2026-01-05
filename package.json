@@ -4,7 +4,7 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "frontend": "vite",
+    "frontend": "vite --host",
     "backend": "node server.js",
     "dev": "concurrently -n \"BACKEND,FRONTEND\" -c \"yellow,blue\" \"npm run backend\" \"npm run frontend\"",
     "build": "tsc && vite build",
