@@ -106,6 +106,7 @@ export enum View {
   AllWarehousesView,
   LogoShowcase,
   RolesManagement,
+    ManagePackagingForms,
 }
 
 export interface Supplier {
@@ -237,6 +238,7 @@ export interface AnalysisResult {
 export interface PalletData {
   nrPalety: string;
   nazwa: string;
+  productGroup?: string;
   dataProdukcji: string;
   dataPrzydatnosci: string;
   initialWeight: number;

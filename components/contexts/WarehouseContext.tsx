@@ -50,6 +50,9 @@ export interface WarehouseContextValue {
     analysisRangesHistory: AnalysisRangeHistoryEntry[];
     logAnalysisRangeChange: (data: Omit<AnalysisRangeHistoryEntry, 'id' | 'timestamp' | 'user'>) => void;
     refreshRawMaterials: () => Promise<void>;
+    refreshProducts: () => Promise<void>;
+    handleAddProduct: (product: { name: string; type: string }) => Promise<{ success: boolean; message: string }>;
+    handleDeleteProduct: (name: string) => Promise<{ success: boolean; message: string }>;
     handleUpdateDeliveryStatus: (deliveryId: string, newStatus: DeliveryStatus) => { success: boolean, message: string, newPallets?: any[], delivery?: Delivery };
     handleSaveLabNotes: (itemId: string, isRaw: boolean, notes: string) => { success: boolean; message: string; type: 'success' | 'error' };
     handleAddDocument: (itemId: string, itemType: 'raw' | 'fg', file: File) => { success: boolean; message: string; type: 'success' | 'error' };
@@ -106,7 +109,7 @@ export const WarehouseProvider: React.FC<PropsWithChildren> = ({ children }) => 
     const [deliveries, setDeliveries] = useState<Delivery[]>(INITIAL_DELIVERIES);
     const [packagingMaterialsLog, setPackagingMaterialsLog] = useState<PackagingMaterialLogEntry[]>(INITIAL_PACKAGING_MATERIALS);
     const [inventorySessions, setInventorySessions] = useState<InventorySession[]>([]);
-    const [allProducts] = useState<any[]>(INITIAL_PRODUCTS);
+    const [allProducts, setAllProducts] = useState<any[]>([]);
     const [warehouseNavLayout, setWarehouseNavLayout] = useState<WarehouseNavLayoutItem[]>(DEFAULT_WAREHOUSE_NAV_LAYOUT);
     
     const [expiryWarningDays, setExpiryWarningDays] = useState<number>(DEFAULT_SETTINGS.EXPIRY_WARNING_DAYS);
@@ -121,6 +124,19 @@ export const WarehouseProvider: React.FC<PropsWithChildren> = ({ children }) => 
 
     const [analysisRanges, setAnalysisRanges] = useState<AnalysisRange[]>(DEFAULT_ANALYSIS_RANGES);
     const [analysisRangesHistory, setAnalysisRangesHistory] = useState<AnalysisRangeHistoryEntry[]>([]);
+
+    // Pobieranie produktów z API
+    const refreshProducts = useCallback(async () => {
+        try {
+            const response = await fetch(`${API_BASE_URL}/products`);
+            if (response.ok) {
+                const data = await response.json();
+                setAllProducts(data);
+            }
+        } catch (error) {
+            console.error('Błąd pobierania produktów:', error);
+        }
+    }, []);
 
     // Pobieranie surowców z API
     const refreshRawMaterials = useCallback(async () => {
@@ -161,11 +177,13 @@ export const WarehouseProvider: React.FC<PropsWithChildren> = ({ children }) => 
     // Pobierz dane na starcie i co 5 sekund
     useEffect(() => {
         refreshRawMaterials(); // Pobierz na starcie
+        refreshProducts(); // Pobierz produkty
         const interval = setInterval(() => {
             refreshRawMaterials();
+            refreshProducts();
         }, 5000); // Odśwież co 5 sekund
         return () => clearInterval(interval);
-    }, []);
+    }, [refreshRawMaterials, refreshProducts]);
 
     // --- INTEGRACJA Z API (Pobieranie danych przy starcie) ---
     useEffect(() => {
@@ -553,12 +571,51 @@ export const WarehouseProvider: React.FC<PropsWithChildren> = ({ children }) => 
         return { success: true, message: "Zwolniono paletę." };
     }, [setRawMaterialsLogList, setFinishedGoodsList]);
 
+    const handleAddProduct = useCallback(async (product: { name: string; type: string }) => {
+        try {
+            const response = await fetch(`${API_BASE_URL}/products`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(product),
+            });
+            if (response.ok) {
+                await refreshProducts();
+                return { success: true, message: 'Produkt został dodany' };
+            } else {
+                const error = await response.json();
+                return { success: false, message: error.error || 'Błąd dodawania produktu' };
+            }
+        } catch (err) {
+            console.error('Błąd dodawania produktu:', err);
+            return { success: false, message: 'Błąd połączenia z serwerem' };
+        }
+    }, [refreshProducts]);
+
+    const handleDeleteProduct = useCallback(async (name: string) => {
+        try {
+            const response = await fetch(`${API_BASE_URL}/products/${encodeURIComponent(name)}`, {
+                method: 'DELETE',
+            });
+            if (response.ok) {
+                await refreshProducts();
+                return { success: true, message: 'Produkt został usunięty' };
+            } else {
+                const error = await response.json();
+                return { success: false, message: error.error || 'Błąd usuwania produktu' };
+            }
+        } catch (err) {
+            console.error('Błąd usuwania produktu:', err);
+            return { success: false, message: 'Błąd połączenia z serwerem' };
+        }
+    }, [refreshProducts]);
+
     const value = {
         rawMaterialsLogList, setRawMaterialsLogList, finishedGoodsList, setFinishedGoodsList, packagingMaterialsLog, setPackagingMaterialsLog,
         deliveries, setDeliveries, expiringPalletsDetails, expiryWarningDays, setExpiryWarningDays, expiryCriticalDays, setExpiryCriticalDays,
         warehouseNavLayout, setWarehouseNavLayout, findPalletByUniversalId, allProducts, inventorySessions,
         analysisRanges, setAnalysisRanges, analysisRangesHistory, logAnalysisRangeChange,
-        refreshRawMaterials,
+        refreshRawMaterials, refreshProducts,
+        handleAddProduct, handleDeleteProduct,
         handleUpdateDeliveryStatus,
         handleSaveLabNotes: () => ({ success: true, message: 'OK', type: 'success' as const }),
         handleAddDocument: () => ({ success: true, message: 'OK', type: 'success' as const }),

@@ -70,12 +70,6 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
         alert("Logowanie kodem QR jest w trakcie implementacji.");
     };
 
-    const handleQuickLogin = async (role: string) => {
-        // Quick login jest niedostępny w nowej wersji z JWT
-        // Wymagane ręczne podanie hasła
-        setErrors({ form: `Szybkie logowanie jest niedostępne. Proszę zalogować się ręcznie za pomocą nazwy użytkownika i hasła.` });
-    };
-
     return (
         <>
             <AnimatedBackground />
@@ -139,30 +133,6 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
                         <QrCodeIcon className="h-5 w-5 mr-2" />
                         Zaloguj kodem QR
                     </Button>
-
-                    <div>
-                        <div className="relative">
-                            <div className="absolute inset-0 flex items-center" aria-hidden="true">
-                                <div className="w-full border-t border-secondary-600" />
-                            </div>
-                            <div className="relative flex justify-center">
-                                <span className="bg-secondary-800 px-2 text-xs text-slate-500">
-                                    Szybkie logowanie (deweloperskie)
-                                </span>
-                            </div>
-                        </div>
-                        <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-2">
-                            <Button variant="secondary" onClick={() => handleQuickLogin('admin')} className="text-xs">Admin</Button>
-                            <Button variant="secondary" onClick={() => handleQuickLogin('planista')} className="text-xs">Planista</Button>
-                            <Button variant="secondary" onClick={() => handleQuickLogin('magazynier')} className="text-xs">Magazynier</Button>
-                            <Button variant="secondary" onClick={() => handleQuickLogin('kierownik magazynu')} className="text-xs">Kierownik</Button>
-                            <Button variant="secondary" onClick={() => handleQuickLogin('lab')} className="text-xs">Laborant</Button>
-                            <Button variant="secondary" onClick={() => handleQuickLogin('operator_psd')} className="text-xs">Operator PSD</Button>
-                            <Button variant="secondary" onClick={() => handleQuickLogin('operator_agro')} className="text-xs">Operator AGRO</Button>
-                            <Button variant="secondary" onClick={() => handleQuickLogin('operator_procesu')} className="text-xs">Operator Procesu</Button>
-                            <Button variant="secondary" onClick={() => handleQuickLogin('user')} className="text-xs">User</Button>
-                        </div>
-                    </div>
                 </div>
             </div>
         </>

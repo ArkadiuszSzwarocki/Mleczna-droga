@@ -60,6 +60,7 @@ const RecipeAdjustmentsPage = lazy(() => import('./RecipeAdjustmentsPage'));
 const CreateAdjustmentOrderPage = lazy(() => import('./CreateAdjustmentOrderPage'));
 const ManageAdjustmentsPage = lazy(() => import('./ManageAdjustmentsPage'));
 const ProductManagementPage = lazy(() => import('./ProductManagementPage'));
+const ManagePackagingFormsPage = lazy(() => import('./ManagePackagingFormsPage'));
 const ManageSuppliersPage = lazy(() => import('./ManageSuppliersPage'));
 const ManageCustomersPage = lazy(() => import('./ManageCustomersPage'));
 const ManagePalletBalancesPage = lazy(() => import('./ManagePalletBalancesPage'));
@@ -354,6 +355,7 @@ export const AppContent = () => {
             case View.CreateAdjustmentOrder: return <CreateAdjustmentOrderPage />;
             case View.ManageAdjustments: return <ManageAdjustmentsPage />;
             case View.ManageProducts: return <ProductManagementPage />;
+            case View.ManagePackagingForms: return <ManagePackagingFormsPage />;
             case View.ManageSuppliers: return <ManageSuppliersPage />;
             case View.ManageCustomers: return <ManageCustomersPage />;
             case View.ManagePalletBalances: return <ManagePalletBalancesPage />;

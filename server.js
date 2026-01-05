@@ -6,12 +6,19 @@ import dotenv from 'dotenv';
 import fs from 'fs';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
+import multer from 'multer';
+import pdfParse from 'pdf-parse';
 
 dotenv.config();
 
 const app = express();
 app.use(cors());
 app.use(express.json());
+// allow plain text bodies (for CSV upload)
+app.use(express.text({ type: ['text/*', 'application/csv'] }));
+
+// multer for multipart file uploads (PDF/CSV)
+const upload = multer({ storage: multer.memoryStorage() });
 
 // JWT Secret - pobierz ze zmiennych środowiskowych lub użyj domyślny
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production-2024';
@@ -504,6 +511,130 @@ DB_NAME=${database}`;
     }
 });
 
+// POST: Import produktów (CSV)
+app.post('/api/import-products', upload.single('file'), async (req, res) => {
+    try {
+        let payload = '';
+        if (req.file && req.file.buffer) {
+            const mimetype = req.file.mimetype || '';
+            if (mimetype === 'application/pdf' || (req.file.originalname || '').toLowerCase().endsWith('.pdf')) {
+                try {
+                    const parsed = await pdfParse(req.file.buffer);
+                    payload = (parsed && parsed.text) ? parsed.text : '';
+                } catch (e) {
+                    console.error('Błąd parsowania PDF:', e.message);
+                    return res.status(400).json({ error: 'Nie można sparsować pliku PDF' });
+                }
+            } else {
+                payload = req.file.buffer.toString('utf8');
+            }
+        } else {
+            payload = typeof req.body === 'string' ? req.body : req.body.csv || '';
+        }
+
+        if (!payload || !payload.trim()) return res.status(400).json({ error: 'Brak danych CSV/PDF w body' });
+
+        const lines = payload.split(/\r?\n/).map(l => l.trim()).filter(l => l);
+        let inserted = 0;
+        for (const line of lines) {
+            // akceptujemy separatory: tab, comma, semicolon, whitespace
+            const parts = line.split(/\t|,|;|\s+/).map(p => p.trim()).filter(p => p);
+            if (parts.length < 1) continue;
+            const code = parts[0];
+            const group = parts[1] || 'inne';
+            const id = `RM-${code}`;
+            try {
+                const [result] = await pool.execute(
+                    `INSERT IGNORE INTO raw_materials (id, nrPalety, nazwa, productGroup, initialWeight, currentWeight, isBlocked, unit) VALUES (?, ?, ?, ?, 0, 0, 0, 'kg')`,
+                    [id, code, code, group]
+                );
+                if (result && result.affectedRows && result.affectedRows > 0) inserted++;
+            } catch (e) {
+                console.error('Błąd insert raw material', code, e.message);
+            }
+        }
+        res.json({ success: true, inserted, total: lines.length });
+    } catch (err) {
+        console.error('❌ Błąd importu produktów:', err);
+        res.status(500).json({ error: 'Błąd importu produktów' });
+    }
+});
+
+// Ensure recipes table
+async function ensureRecipesTable() {
+    try {
+        await pool.execute(`
+            CREATE TABLE IF NOT EXISTS recipes (
+                id VARCHAR(100) PRIMARY KEY,
+                name VARCHAR(255) NOT NULL,
+                data JSON,
+                createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE utf8mb4_unicode_ci;
+        `);
+        console.log('✅ Tabela recipes jest gotowa');
+    } catch (err) {
+        console.error('❌ Błąd tworzenia tabeli recipes:', err.message);
+    }
+}
+// POST: Import receptur (CSV)
+app.post('/api/import-recipes', upload.single('file'), async (req, res) => {
+    try {
+        let payload = '';
+        if (req.file && req.file.buffer) {
+            const mimetype = req.file.mimetype || '';
+            if (mimetype === 'application/pdf' || (req.file.originalname || '').toLowerCase().endsWith('.pdf')) {
+                try {
+                    const parsed = await pdfParse(req.file.buffer);
+                    payload = (parsed && parsed.text) ? parsed.text : '';
+                } catch (e) {
+                    console.error('Błąd parsowania PDF (receptury):', e.message);
+                    return res.status(400).json({ error: 'Nie można sparsować pliku PDF' });
+                }
+            } else {
+                payload = req.file.buffer.toString('utf8');
+            }
+        } else {
+            payload = typeof req.body === 'string' ? req.body : req.body.csv || '';
+        }
+
+        if (!payload || !payload.trim()) return res.status(400).json({ error: 'Brak danych CSV/PDF w body' });
+
+        await ensureRecipesTable();
+
+        const lines = payload.split(/\r?\n/).map(l => l.trim()).filter(l => l);
+        let inserted = 0;
+        for (const line of lines) {
+            const sep = line.includes(';') ? ';' : (line.includes(',') ? ',' : null);
+            let name = line;
+            let ingPart = '';
+            if (sep) {
+                const idx = line.indexOf(sep);
+                name = line.substring(0, idx).trim();
+                ingPart = line.substring(idx + 1).trim();
+            }
+            const ingredients = ingPart ? ingPart.split(/[|,]/).map(s => s.trim()).filter(Boolean).map(it => {
+                const [code, qty] = it.split(':').map(x=>x.trim());
+                return { code, qty: qty ? parseFloat(qty) : null };
+            }) : [];
+            const id = `RC-${name.replace(/\s+/g,'_').toUpperCase()}`;
+            try {
+                const data = { ingredients };
+                const [result] = await pool.execute(
+                    `INSERT INTO recipes (id, name, data) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE data = VALUES(data)`,
+                    [id, name, JSON.stringify(data)]
+                );
+                if (result && result.affectedRows) inserted++;
+            } catch (e) {
+                console.error('Błąd insert recipe', name, e.message);
+            }
+        }
+        res.json({ success: true, inserted, total: lines.length });
+    } catch (err) {
+        console.error('❌ Błąd importu receptur:', err);
+        res.status(500).json({ error: 'Błąd importu receptur' });
+    }
+});
+
 // Endpoint Health Check
 app.get('/api/health', async (req, res) => {
     try {
@@ -570,6 +701,62 @@ app.put('/api/suppliers/:id', async (req, res) => {
     } catch (err) {
         console.error('❌ Błąd aktualizacji dostawcy:', err);
         res.status(500).json({ error: 'Błąd aktualizacji dostawcy' });
+    }
+});
+
+// ==================== ENDPOINTY FORM OPAKOWAŃ ====================
+
+// GET: Pobierz wszystkie aktywne formy opakowań
+app.get('/api/packaging-forms', async (req, res) => {
+    try {
+        const [rows] = await pool.query(`SELECT * FROM packaging_forms WHERE is_active = TRUE ORDER BY name ASC`);
+        res.json(rows);
+    } catch (err) {
+        console.error('❌ Błąd pobierania form opakowań:', err);
+        res.status(500).json({ error: 'Błąd pobierania form opakowań' });
+    }
+});
+
+// POST: Dodaj nową formę opakowania
+app.post('/api/packaging-forms', async (req, res) => {
+    const { code, name, type, description } = req.body;
+    try {
+        const [result] = await pool.execute(`
+            INSERT INTO packaging_forms (code, name, type, description)
+            VALUES (?, ?, ?, ?)
+        `, [code || null, name, type || null, description || null]);
+
+        res.json({ success: true, id: result.insertId });
+    } catch (err) {
+        console.error('❌ Błąd tworzenia formy opakowania:', err);
+        res.status(500).json({ error: 'Błąd tworzenia formy opakowania' });
+    }
+});
+
+// PUT: Aktualizuj formę opakowania
+app.put('/api/packaging-forms/:id', async (req, res) => {
+    const { id } = req.params;
+    const { code, name, type, description, is_active } = req.body;
+    try {
+        await pool.execute(`
+            UPDATE packaging_forms SET code = ?, name = ?, type = ?, description = ?, is_active = ? WHERE id = ?
+        `, [code || null, name, type || null, description || null, is_active === undefined ? true : is_active, id]);
+        res.json({ success: true });
+    } catch (err) {
+        console.error('❌ Błąd aktualizacji formy opakowania:', err);
+        res.status(500).json({ error: 'Błąd aktualizacji formy opakowania' });
+    }
+});
+
+// DELETE: Dezaktywuj formę opakowania (soft-delete)
+app.delete('/api/packaging-forms/:id', async (req, res) => {
+    const { id } = req.params;
+    try {
+        await pool.execute(`UPDATE packaging_forms SET is_active = FALSE WHERE id = ?`, [id]);
+        res.json({ success: true });
+    } catch (err) {
+        console.error('❌ Błąd usuwania formy opakowania:', err);
+        res.status(500).json({ error: 'Błąd usuwania formy opakowania' });
     }
 });
 
@@ -1545,12 +1732,164 @@ async function initRawMaterialsTable() {
         try {
             await pool.execute(`ALTER TABLE raw_materials ADD COLUMN IF NOT EXISTS deliveryRef VARCHAR(100) COMMENT 'Referencja dostawy'`);
             await pool.execute(`ALTER TABLE raw_materials ADD COLUMN IF NOT EXISTS deliveryDate DATE COMMENT 'Data dostawy'`);
-            console.log('✅ Kolumny deliveryRef i deliveryDate dodane do raw_materials');
+            await pool.execute(`ALTER TABLE raw_materials ADD COLUMN IF NOT EXISTS productGroup VARCHAR(50) COMMENT 'Grupa produktowa'`);
+            console.log('✅ Kolumny deliveryRef, deliveryDate i productGroup dodane do raw_materials');
         } catch (err) {
-            console.log('⚠️ Kolumny deliveryRef/deliveryDate już istnieją lub błąd:', err.message);
+            console.log('⚠️ Kolumny już istnieją lub błąd:', err.message);
+        }
+        
+        // Dodanie definicji surowców
+        try {
+            const rawMaterialsData = [
+                ['BM2448', 'bm'], ['BM2455', 'bm'], ['BM2974', 'bm'], ['BM2981', 'bm'], ['BM2998', 'bm'],
+                ['BM3001', 'bm'], ['BM3285', 'bm'], ['BM3308', 'bm'], ['BM3322', 'bm'], ['BM3995', 'bm'],
+                ['BM4008', 'bm'], ['BM4015', 'bm'], ['BM4022', 'bm'], ['BM4039', 'bm'], ['BM4046', 'bm'],
+                ['BM4053', 'bm'], ['BM4060', 'bm'], ['BM4077', 'bm'], ['BM4084', 'bm'], ['BM4091', 'bm'],
+                ['BM4107', 'bm'], ['BM4114', 'bm'], ['BM4121', 'bm'], ['BM4138', 'bm'], ['BM4145', 'bm'],
+                ['BM4152', 'bm'], ['BM4169', 'bm'], ['BM4176', 'bm'], ['BM4183', 'bm'], ['BM4190', 'bm'],
+                ['BM4206', 'bm'], ['BM4213', 'bm'], ['BM4220', 'bm'], ['BM4237', 'bm'], ['BM4244', 'bm'],
+                ['BM4251', 'bm'], ['BM4268', 'bm'],
+                ['DO1960', 'dodatek'], ['DO2394', 'dodatek'], ['DO2424', 'dodatki'], ['DO2431', 'dodatki'],
+                ['DO2493', 'dodatek'], ['DO2509', 'dodatek'], ['DO2554', 'dodatek'], ['DO2561', 'dodatek'],
+                ['DO2578', 'dodatek'], ['DO2615', 'dodatek'], ['DO2653', 'dodatek'], ['DO2660', 'dodatek'],
+                ['DO2677', 'dodatek'], ['DO2684', 'dodatek'], ['DO2776', 'dodatek'], ['DO2837', 'dodatek'],
+                ['DO2851', 'dodatek'], ['DO2929', 'dodatek'], ['DO2936', 'dodatek'], ['DO2943', 'dodatek'],
+                ['DO2950', 'dodatek'], ['DO2967', 'dodatek'], ['DO3094', 'dodatek'], ['DO3339', 'dodatki'],
+                ['DO3346', 'dodatki'], ['DO3414', 'dodatek'], ['DO3490', 'dodatek'], ['DO3506', 'dodatek'],
+                ['DO3513', 'dodatek'], ['DO3520', 'dodatek'], ['DO3537', 'dodatek'], ['DO3544', 'dodatek'],
+                ['DO3551', 'dodatek'], ['DO3629', 'dodatek'], ['DO3735', 'dodatek'], ['DO3780', 'dodatek'],
+                ['DO3797', 'dodatek'], ['DO3803', 'dodatek'], ['DO3810', 'dodatek'], ['DO3896', 'dodatek'],
+                ['DO3933', 'dodatek'], ['DO5074', 'dodatek'], ['DO5081', 'dodatek'],
+                ['IN3186', 'inne'], ['IN3759', 'inne'],
+                ['MI2400', 'mineralne'], ['MI2516', 'mineralne'], ['MI2523', 'mineralne'], ['MI2905', 'mineralne'],
+                ['MI3032', 'mineralne'], ['MI3087', 'mineralne'], ['MI3452', 'mineralne'],
+                ['ML2417', 'mleczne'], ['ML2462', 'mleczne'], ['ML2486', 'mleczne'], ['ML2530', 'mleczne'],
+                ['ML2547', 'mleczne'], ['ML2585', 'mleczne'], ['ML2592', 'mleczne'], ['ML2721', 'mleczne'],
+                ['ML2745', 'mleczne'], ['ML2769', 'mleczne'], ['ML2790', 'mleczne'], ['ML2806', 'mleczne'],
+                ['ML2820', 'mleczne'], ['ML2844', 'mleczne'], ['ML2875', 'mleczne'], ['ML2882', 'mleczne'],
+                ['ML2899', 'mleczne'], ['ML3018', 'mleczne'], ['ML3025', 'mleczne'], ['ML3100', 'mleczne'],
+                ['ML3117', 'mleczne'], ['ML3124', 'mleczne'], ['ML3148', 'mleczne'], ['ML3155', 'mleczne'],
+                ['ML3162', 'mleczne'], ['ML3179', 'mleczne'], ['ML3193', 'mleczne'], ['ML3209', 'mleczne'],
+                ['ML3216', 'mleczne'], ['ML3223', 'mleczne'], ['ML3230', 'mleczne'], ['ML3247', 'mleczne'],
+                ['ML3254', 'mleczne'], ['ML3261', 'mleczne'], ['ML3278', 'mleczne'], ['ML3292', 'mleczne'],
+                ['ML3315', 'mleczne'], ['ML3391', 'mleczne'], ['ML3407', 'mleczne'], ['ML3438', 'mleczne'],
+                ['ML3445', 'mleczne'], ['ML3469', 'mleczne'], ['ML3636', 'mleczne'], ['ML3643', 'mleczne'],
+                ['ML3650', 'mleczne'], ['ML3667', 'mleczne'], ['ML3674', 'mleczne'], ['ML3681', 'mleczne'],
+                ['ML3766', 'mleczne'], ['ML3773', 'mleczne'], ['ML3827', 'mleczne'], ['ML3834', 'mleczne'],
+                ['ML3841', 'mleczne'], ['ML3858', 'mleczne'], ['ML3865', 'mleczne'], ['ML3872', 'mleczne'],
+                ['ML3889', 'mleczne'], ['ML3902', 'mleczne'], ['ML3940', 'mleczne'], ['ML3957', 'mleczne'],
+                ['PX2622', 'premiks'], ['PX2639', 'premiks'], ['PX2646', 'premiks'], ['PX3049', 'premiks'],
+                ['PX3056', 'premiks'], ['PX3063', 'premiks'], ['PX3070', 'premiks'], ['PX3476', 'premiks'],
+                ['PX3483', 'premiks'], ['PX3742', 'premiks'], ['PX3971', 'premiks'], ['PX3988', 'premiks'],
+                ['RO2479', 'roślinne'], ['RO2608', 'roślinne'], ['RO2691', 'roślinne'], ['RO2707', 'roślinne'],
+                ['RO2714', 'roślinne'], ['RO2738', 'roślinne'], ['RO2752', 'roślinne'], ['RO2783', 'roślinne'],
+                ['RO2813', 'roślinne'], ['RO2868', 'roślinne'], ['RO2912', 'roślinne'], ['RO3131', 'roślinne'],
+                ['RO3353', 'roślinne'], ['RO3360', 'roślinne'], ['RO3377', 'roślinne'], ['RO3384', 'roślinne'],
+                ['RO3421', 'roślinne'], ['RO3568', 'roślinne'], ['RO3575', 'roślinne'], ['RO3582', 'roślinne'],
+                ['RO3599', 'roślinne'], ['RO3605', 'roślinne'], ['RO3612', 'roślinne'], ['RO3698', 'roślinne'],
+                ['RO3704', 'roślinne'], ['RO3711', 'roślinne'], ['RO3728', 'roślinne'], ['RO3919', 'roślinne'],
+                ['RO3926', 'roślinne'], ['RO3964', 'roślinne']
+            ];
+            
+            for (const [kod, grupa] of rawMaterialsData) {
+                const id = `RM-${kod}`;
+                await pool.execute(
+                    `INSERT INTO raw_materials (id, nrPalety, nazwa, productGroup, initialWeight, currentWeight, isBlocked, unit)
+                     VALUES (?, ?, ?, ?, 0, 0, 0, 'kg')
+                     ON DUPLICATE KEY UPDATE nazwa = VALUES(nazwa), productGroup = VALUES(productGroup)`,
+                    [id, kod, kod, grupa]
+                );
+            }
+            console.log(`✅ Zsynchronizowano ${rawMaterialsData.length} definicji surowców`);
+        } catch (err) {
+            console.log('⚠️ Błąd podczas dodawania surowców:', err.message);
         }
     } catch (err) {
         console.error('❌ Błąd inicjalizacji tabeli raw_materials:', err.message);
+    }
+}
+
+// Tworzy tabelę katalogu produktów i synchronizuje z raw_materials
+async function initProductsTable() {
+    try {
+        await pool.execute(`
+            CREATE TABLE IF NOT EXISTS products (
+                id VARCHAR(100) PRIMARY KEY,
+                name VARCHAR(255) NOT NULL,
+                sku VARCHAR(100) UNIQUE,
+                description TEXT,
+                category VARCHAR(100),
+                createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                INDEX idx_sku (sku),
+                INDEX idx_category (category)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE utf8mb4_unicode_ci;
+        `);
+        console.log('✅ Tabela products jest gotowa');
+
+        // Synchronizuj istniejące surowce (raw_materials) do katalogu produktów.
+        // Tabela `products` może mieć różne schematy (stara aplikacja) — wykryj kolumny i dopasuj insert/update.
+        try {
+            const [cols] = await pool.query(`SHOW COLUMNS FROM products`);
+            const colNames = (cols || []).map(c => c.Field);
+
+            const [rows] = await pool.query(`SELECT nrPalety, nazwa, productGroup, id FROM raw_materials WHERE nrPalety IS NOT NULL`);
+            for (const r of rows) {
+                const sku = r.nrPalety;
+                const pname = r.nazwa || sku;
+                const category = r.productGroup || null;
+
+                try {
+                    if (colNames.includes('sku') && colNames.includes('name')) {
+                        // modern schema
+                        const pid = `P-${sku}`;
+                        await pool.execute(`INSERT INTO products (id, name, sku, category, createdAt, updatedAt) VALUES (?, ?, ?, ?, NOW(), NOW()) ON DUPLICATE KEY UPDATE name = ?, category = ?, sku = ?, updatedAt = NOW()`, [pid, pname, sku, category, pname, category, sku]);
+                    } else if (colNames.includes('nazwa')) {
+                        // legacy schema: id (auto), nazwa, typ, jednostka
+                        // find existing by nazwa or insert
+                        const [[existing]] = await pool.query(`SELECT * FROM products WHERE nazwa = ? LIMIT 1`, [pname]);
+                        if (existing) {
+                            await pool.execute(`UPDATE products SET nazwa = ?, typ = ?, jednostka = ? WHERE id = ?`, [pname, 'raw', category || 'kg', existing.id]);
+                        } else {
+                            await pool.execute(`INSERT INTO products (nazwa, typ, jednostka) VALUES (?, ?, ?)`, [pname, 'raw', category || 'kg']);
+                        }
+                    } else {
+                        // unknown schema: skip
+                        console.log('⚠️ Nieznany schemat tabeli products, pomijam wpis:', sku);
+                    }
+                } catch (e) {
+                    console.log('⚠️ Błąd podczas synchronizacji rekordu produktu:', e.message);
+                }
+            }
+            console.log('✅ Zsynchronizowano katalog produktów z raw_materials');
+        } catch (err) {
+            console.log('⚠️ Błąd synchronizacji produktów (select):', err.message);
+        }
+    } catch (err) {
+        console.error('❌ Błąd inicjalizacji tabeli products:', err.message);
+    }
+}
+
+// Tworzy tabelę form opakowań (packaging_forms)
+async function initPackagingFormsTable() {
+    try {
+        await pool.execute(`
+            CREATE TABLE IF NOT EXISTS packaging_forms (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                code VARCHAR(50) UNIQUE,
+                name VARCHAR(255) NOT NULL,
+                type VARCHAR(50),
+                description TEXT,
+                is_active BOOLEAN DEFAULT TRUE,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                INDEX idx_name (name),
+                INDEX idx_code (code)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE utf8mb4_unicode_ci;
+        `);
+        console.log('✅ Tabela packaging_forms jest gotowa');
+    } catch (err) {
+        console.error('❌ Błąd inicjalizacji tabeli packaging_forms:', err.message);
     }
 }
 
@@ -1560,6 +1899,8 @@ async function initRawMaterialsTable() {
 async function initialize() {
     await initUsersTable();
     await initRawMaterialsTable();
+    await initProductsTable();
+    await initPackagingFormsTable();
 }
 
 initialize();
@@ -1670,6 +2011,106 @@ app.delete('/api/raw-materials/:id', async (req, res) => {
     } catch (err) {
         console.error(err);
         res.status(500).json({ error: 'Błąd usuwania surowca' });
+    }
+});
+
+// GET: Pobieranie wszystkich produktów (surowców) dla katalogu
+app.get('/api/products', async (req, res) => {
+    try {
+        // Detect products table schema
+        const [cols] = await pool.query(`SHOW COLUMNS FROM products`);
+        const colNames = (cols || []).map(c => c.Field);
+
+        if (colNames.includes('sku') && colNames.includes('name')) {
+            const [catalogRows] = await pool.query(`
+                SELECT sku as name, 'raw_material' as type, name as fullName, category as groupName
+                FROM products
+                WHERE sku IS NOT NULL
+                ORDER BY name ASC
+            `);
+            if (catalogRows && catalogRows.length > 0) return res.json(catalogRows);
+        } else if (colNames.includes('nazwa')) {
+            const [legacyRows] = await pool.query(`
+                SELECT nazwa as name, CASE WHEN typ='raw' THEN 'raw_material' WHEN typ='fg' THEN 'finished_good' WHEN typ='pkg' THEN 'packaging' ELSE typ END as type, nazwa as fullName, jednostka as groupName
+                FROM products
+                ORDER BY nazwa ASC
+            `);
+            if (legacyRows && legacyRows.length > 0) return res.json(legacyRows);
+        }
+
+        // Fallback to raw_materials if products table empty or missing
+        const [rows] = await pool.query(`
+            SELECT nrPalety as name, 'raw_material' as type, nazwa as fullName, productGroup as groupName
+            FROM raw_materials
+            WHERE nrPalety IS NOT NULL
+            ORDER BY nazwa ASC
+        `);
+        res.json(rows);
+    } catch (err) {
+        console.error('❌ Błąd pobierania produktów:', err);
+        res.status(500).json({ error: 'Błąd pobierania produktów' });
+    }
+});
+
+// DEBUG: pokaż schemat tabeli products (tylko do diagnostyki)
+app.get('/api/_debug/products-schema', async (req, res) => {
+    try {
+        const [cols] = await pool.query(`SHOW COLUMNS FROM products`);
+        res.json(cols);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// POST: Dodawanie nowego produktu (surowca)
+app.post('/api/products', async (req, res) => {
+    const { name, type, fullName, groupName } = req.body;
+
+    if (type !== 'raw_material') {
+        return res.status(400).json({ error: 'Aktualnie obsługiwane są tylko surowce (raw_material)' });
+    }
+
+    try {
+        const sku = name;
+        const id = `P-${Date.now()}`;
+        await pool.execute(
+            `INSERT INTO products (id, name, sku, category) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE name = VALUES(name), category = VALUES(category)`,
+            [id, fullName || name, sku, groupName || 'inne']
+        );
+        res.json({ success: true, message: 'Produkt katalogowy został dodany', id });
+    } catch (err) {
+        console.error('❌ Błąd dodawania produktu do katalogu:', err);
+        res.status(500).json({ error: 'Błąd dodawania produktu' });
+    }
+});
+
+// PUT: Aktualizacja produktu (surowca)
+app.put('/api/products/:sku', async (req, res) => {
+    const { sku } = req.params;
+    const { fullName, groupName } = req.body;
+
+    try {
+        await pool.execute(
+            `UPDATE products SET name = ?, category = ? WHERE sku = ?`,
+            [fullName, groupName, sku]
+        );
+        res.json({ success: true, message: 'Produkt katalogowy został zaktualizowany' });
+    } catch (err) {
+        console.error('❌ Błąd aktualizacji produktu katalogowego:', err);
+        res.status(500).json({ error: 'Błąd aktualizacji produktu' });
+    }
+});
+
+// DELETE: Usuwanie produktu (surowca)
+app.delete('/api/products/:sku', async (req, res) => {
+    const { sku } = req.params;
+
+    try {
+        await pool.execute('DELETE FROM products WHERE sku = ?', [sku]);
+        res.json({ success: true, message: 'Produkt katalogowy został usunięty' });
+    } catch (err) {
+        console.error('❌ Błąd usuwania produktu katalogowego:', err);
+        res.status(500).json({ error: 'Błąd usuwania produktu' });
     }
 });
 

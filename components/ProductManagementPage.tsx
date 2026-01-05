@@ -10,6 +10,7 @@ import ConfirmationModal from './ConfirmationModal';
 import { useSortableData } from '../src/useSortableData';
 import SortableHeader from './SortableHeader';
 import { useWarehouseContext } from './contexts/WarehouseContext';
+import { API_BASE_URL } from '../constants';
 
 // FIX: Changed Product['type'] to any
 const getProductTypeLabel = (type: any) => {
@@ -22,7 +23,7 @@ const getProductTypeLabel = (type: any) => {
 };
 
 const ProductManagementPage: React.FC = () => {
-    const { allProducts, handleAddProduct, handleDeleteProduct } = useWarehouseContext() as any;
+    const { allProducts, handleAddProduct, handleDeleteProduct, refreshProducts } = useWarehouseContext() as any;
 
     const [newProductName, setNewProductName] = useState('');
     const [newProductType, setNewProductType] = useState<'raw_material' | 'packaging' | 'finished_good'>('raw_material');
@@ -70,6 +71,36 @@ const ProductManagementPage: React.FC = () => {
         { value: 'finished_good', label: 'Wyrób Gotowy' },
     ];
 
+    const [importFile, setImportFile] = useState<File | null>(null);
+    const [importing, setImporting] = useState(false);
+
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files && e.target.files[0]) setImportFile(e.target.files[0]);
+    };
+
+    const uploadCsv = async (endpoint: string) => {
+        if (!importFile) return setFeedback({ type: 'error', message: 'Wybierz plik CSV lub PDF.' });
+        setImporting(true);
+        try {
+            const form = new FormData();
+            form.append('file', importFile);
+            const res = await fetch(`${API_BASE_URL}${endpoint}`, {
+                method: 'POST',
+                body: form
+            });
+            const data = await res.json();
+            if (res.ok) setFeedback({ type: 'success', message: `Zaimportowano ${data.inserted}/${data.total}` });
+            else setFeedback({ type: 'error', message: data.error || 'Błąd importu' });
+            // refresh products if importing products
+            if (endpoint === '/api/import-products' && refreshProducts) await refreshProducts();
+        } catch (err: any) {
+            setFeedback({ type: 'error', message: err.message || 'Błąd importu' });
+        } finally {
+            setImporting(false);
+            setImportFile(null);
+        }
+    };
+
     return (
         <>
             <div className="p-4 md:p-6 bg-white dark:bg-secondary-800 shadow-xl rounded-lg">
@@ -99,6 +130,16 @@ const ProductManagementPage: React.FC = () => {
                         />
                         <Button type="submit" leftIcon={<PlusIcon className="h-5 w-5"/>} disabled={!newProductName.trim()}>Dodaj</Button>
                     </form>
+                </section>
+
+                <section className="mt-6 p-4 border dark:border-secondary-700 rounded-lg bg-slate-50 dark:bg-secondary-900">
+                    <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-200 mb-3">Import CSV (surowce / receptury)</h3>
+                    <div className="flex items-center gap-3">
+                        <input type="file" accept=".csv,.txt" onChange={handleFileChange} />
+                        <Button variant="secondary" onClick={() => uploadCsv('/api/import-products')} disabled={importing || !importFile}>Importuj surowce</Button>
+                        <Button variant="secondary" onClick={() => uploadCsv('/api/import-recipes')} disabled={importing || !importFile}>Importuj receptury</Button>
+                    </div>
+                    <p className="mt-2 text-xs text-slate-400">Plik CSV: każda linia: <code>KOD GRUPA</code> lub <code>nazwa;kod1:qty,kod2:qty</code> dla receptur.</p>
                 </section>
 
                 <section>

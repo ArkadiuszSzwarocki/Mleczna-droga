@@ -217,3 +217,59 @@ async function init() {
 }
 
 init();
+
+// Dodatkowy seed: formy opakowań
+import mysql2 from 'mysql2/promise';
+import dotenv2 from 'dotenv';
+dotenv2.config();
+
+async function seedPackagingForms() {
+    const dbConfig = {
+        host: process.env.DB_HOST || 'localhost',
+        port: parseInt(process.env.DB_PORT || '3307'),
+        user: process.env.DB_USER || 'root',
+        password: process.env.DB_PASSWORD || '',
+        database: process.env.DB_NAME || 'mleczna_droga'
+    };
+
+    const conn = await mysql2.createConnection(dbConfig);
+    try {
+        await conn.query(`
+            CREATE TABLE IF NOT EXISTS packaging_forms (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                code VARCHAR(50) UNIQUE,
+                name VARCHAR(255) NOT NULL,
+                type VARCHAR(50),
+                description TEXT,
+                is_active BOOLEAN DEFAULT TRUE,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+        `);
+
+        const forms = [
+            ['big_bag', 'Big Bag', 'big_bag', 'Duże worki typu big bag (zbiorcze)'],
+            ['bags', 'Worki', 'bags', 'Worki (np. 25 kg)'],
+            ['packaging', 'Opakowania', 'packaging', 'Opakowania jednostkowe (opakowania zbiorcze)'],
+            ['packaging_pcs', 'Opakowania (szt.)', 'packaging_pcs', 'Opakowania sprzedawane w sztukach'],
+            ['pallet', 'Paleta', 'pallet', 'Paleta EUR/EPAL']
+        ];
+
+        for (const f of forms) {
+            try {
+                await conn.query('INSERT IGNORE INTO packaging_forms (code, name, type, description) VALUES (?, ?, ?, ?)', f);
+            } catch (e) {
+                // ignore
+            }
+        }
+
+        console.log('✅ Zasiano domyślne formy opakowań');
+    } catch (err) {
+        console.error('❌ Błąd seedowania packaging_forms:', err.message || err);
+    } finally {
+        await conn.end();
+    }
+}
+
+// Uruchom seed teraz
+seedPackagingForms();
