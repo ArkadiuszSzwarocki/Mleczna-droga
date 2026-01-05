@@ -64,6 +64,23 @@ CREATE TABLE IF NOT EXISTS warehouses (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- =====================================================
+-- Tabela lokalizacji magazynowych (warehouseLocation)
+-- =====================================================
+CREATE TABLE IF NOT EXISTS warehouseLocation (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    code VARCHAR(50) NOT NULL UNIQUE COMMENT 'Kod lokalizacji (np. BF_MS01, R01)',
+    name VARCHAR(255) NOT NULL COMMENT 'Nazwa wyświetlana lokalizacji',
+    type VARCHAR(50) DEFAULT 'zone' COMMENT 'Typ lokalizacji (warehouse/zone/rack/bin)',
+    capacity INT DEFAULT NULL COMMENT 'Pojemność w paletach',
+    is_locked TINYINT(1) DEFAULT 0 COMMENT 'Czy lokalizacja zablokowana',
+    is_active TINYINT(1) DEFAULT 1 COMMENT 'Czy aktywna (soft-delete)',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_code (code),
+    INDEX idx_type (type)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- =====================================================
 -- Tabela produktów
 -- =====================================================
 CREATE TABLE IF NOT EXISTS products (

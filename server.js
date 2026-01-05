@@ -373,7 +373,7 @@ async function initUsersTable() {
             await pool.execute(`ALTER TABLE delivery_items ADD COLUMN IF NOT EXISTS batch_number VARCHAR(100)`);
             await pool.execute(`ALTER TABLE delivery_items ADD COLUMN IF NOT EXISTS position INT DEFAULT 0`);
             await pool.execute(`ALTER TABLE delivery_items MODIFY COLUMN packaging_type VARCHAR(50) DEFAULT 'bags'`);
-            await pool.execute(`ALTER TABLE delivery_items CHANGE COLUMN weight_net net_weight DECIMAL(10,2) DEFAULT 0`);
+            await pool.execute(`ALTER TABLE delivery_items ADD COLUMN IF NOT EXISTS net_weight DECIMAL(10,2) DEFAULT 0`);
             await pool.execute(`ALTER TABLE delivery_items ADD COLUMN IF NOT EXISTS weight_per_bag DECIMAL(10,2)`);
             await pool.execute(`ALTER TABLE delivery_items ADD COLUMN IF NOT EXISTS units_per_pallet INT`);
             await pool.execute(`ALTER TABLE delivery_items ADD COLUMN IF NOT EXISTS unit VARCHAR(10) DEFAULT 'kg'`);
@@ -449,6 +449,38 @@ async function initUsersTable() {
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE utf8mb4_unicode_ci;
         `);
         console.log('✅ Tabela pallet_location_history jest gotowa');
+
+        // Tabela magazynów (jeśli brak) - potrzebna dla klucza obcego w warehouse_locations
+        await pool.execute(`
+            CREATE TABLE IF NOT EXISTS warehouses (
+                id VARCHAR(50) PRIMARY KEY,
+                name VARCHAR(100) NOT NULL,
+                location VARCHAR(100),
+                capacity INT DEFAULT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                INDEX idx_warehouses_name (name)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE utf8mb4_unicode_ci;
+        `);
+        console.log('✅ Tabela warehouses jest gotowa');
+
+        // Tabela lokalizacji magazynowych (pozycje / strefy w magazynach)
+        await pool.execute(`
+            CREATE TABLE IF NOT EXISTS warehouse_locations (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                warehouse_id VARCHAR(50) DEFAULT NULL,
+                code VARCHAR(50) UNIQUE,
+                name VARCHAR(255) NOT NULL,
+                zone VARCHAR(100),
+                capacity INT DEFAULT NULL,
+                is_active BOOLEAN DEFAULT TRUE,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                INDEX idx_warehouse (warehouse_id),
+                INDEX idx_code (code),
+                FOREIGN KEY (warehouse_id) REFERENCES warehouses(id) ON DELETE SET NULL
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE utf8mb4_unicode_ci;
+        `);
+        console.log('✅ Tabela warehouse_locations jest gotowa');
         
         // Tabela logu korekt (dla zamkniętych dostaw)
         await pool.execute(`
@@ -757,6 +789,62 @@ app.delete('/api/packaging-forms/:id', async (req, res) => {
     } catch (err) {
         console.error('❌ Błąd usuwania formy opakowania:', err);
         res.status(500).json({ error: 'Błąd usuwania formy opakowania' });
+    }
+});
+
+// ==================== ENDPOINTY LOKALIZACJI MAGAZYNOWYCH ====================
+
+// GET: Pobierz wszystkie aktywne lokalizacje magazynowe
+app.get('/api/warehouse-locations', async (req, res) => {
+    try {
+        const [rows] = await pool.query(`SELECT * FROM warehouse_locations WHERE is_active = TRUE ORDER BY name ASC`);
+        res.json(rows);
+    } catch (err) {
+        console.error('❌ Błąd pobierania lokalizacji magazynowych:', err);
+        res.status(500).json({ error: 'Błąd pobierania lokalizacji magazynowych' });
+    }
+});
+
+// POST: Dodaj nową lokalizację magazynową
+app.post('/api/warehouse-locations', async (req, res) => {
+    const { warehouse_id, code, name, zone, capacity } = req.body;
+    try {
+        const [result] = await pool.execute(`
+            INSERT INTO warehouse_locations (warehouse_id, code, name, zone, capacity)
+            VALUES (?, ?, ?, ?, ?)
+        `, [warehouse_id || null, code || null, name, zone || null, capacity || null]);
+
+        res.json({ success: true, id: result.insertId });
+    } catch (err) {
+        console.error('❌ Błąd tworzenia lokalizacji:', err);
+        res.status(500).json({ error: 'Błąd tworzenia lokalizacji magazynowej' });
+    }
+});
+
+// PUT: Aktualizuj lokalizację magazynową
+app.put('/api/warehouse-locations/:id', async (req, res) => {
+    const { id } = req.params;
+    const { warehouse_id, code, name, zone, capacity, is_active } = req.body;
+    try {
+        await pool.execute(`
+            UPDATE warehouse_locations SET warehouse_id = ?, code = ?, name = ?, zone = ?, capacity = ?, is_active = ? WHERE id = ?
+        `, [warehouse_id || null, code || null, name, zone || null, capacity || null, is_active === undefined ? true : is_active, id]);
+        res.json({ success: true });
+    } catch (err) {
+        console.error('❌ Błąd aktualizacji lokalizacji:', err);
+        res.status(500).json({ error: 'Błąd aktualizacji lokalizacji magazynowej' });
+    }
+});
+
+// DELETE: Dezaktywuj lokalizację (soft-delete)
+app.delete('/api/warehouse-locations/:id', async (req, res) => {
+    const { id } = req.params;
+    try {
+        await pool.execute(`UPDATE warehouse_locations SET is_active = FALSE WHERE id = ?`, [id]);
+        res.json({ success: true });
+    } catch (err) {
+        console.error('❌ Błąd usuwania lokalizacji:', err);
+        res.status(500).json({ error: 'Błąd usuwania lokalizacji magazynowej' });
     }
 });
 

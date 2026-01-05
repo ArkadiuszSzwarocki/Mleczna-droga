@@ -102,21 +102,7 @@ export const getNavItemsDefinition = (
         ]
     },
 
-    {
-        key: 'group-kartoteki',
-        label: 'Kartoteki',
-        icon: React.createElement(ListBulletIcon, { className: "h-6 w-6" }),
-        isGroup: true,
-        separatorBefore: true,
-        defaultOpen: false,
-        hidden: !isAdmin && isPsdOperator,
-        subItems: [
-            { key: 'view-products', view: View.ManageProducts, label: 'Katalog Produktów', permission: Permission.MANAGE_PRODUCTS },
-            { key: 'view-suppliers', view: View.ManageSuppliers, label: 'Kontrahenci (Dostawcy)' },
-            { key: 'view-customers', view: View.ManageCustomers, label: 'Kontrahenci (Klienci)' },
-            { key: 'view-packaging-forms', view: View.ManagePackagingForms, label: 'Formy Opakowań', permission: Permission.MANAGE_PRODUCTS },
-        ]
-    },
+    // `Kartoteki` przeniesione jako podmenu do sekcji `System i Administracja` (usuwa duplikaty)
 
     {
         key: 'group-planowanie',
@@ -234,10 +220,20 @@ export const getNavItemsDefinition = (
             { key: 'view-roles-management', view: View.RolesManagement, label: 'Role i Oddziały', permission: Permission.MANAGE_PERMISSIONS },
             { key: 'view-users', view: View.Users, label: 'Użytkownicy', permission: Permission.MANAGE_USERS },
             { key: 'view-permissions', view: View.UserPermissions, label: 'Uprawnienia Indywidualne', permission: Permission.MANAGE_PERMISSIONS },
-            { key: 'view-suppliers', view: View.ManageSuppliers, label: 'Kontrahenci (Dostawcy)' },
-            { key: 'view-customers', view: View.ManageCustomers, label: 'Kontrahenci (Klienci)' },
-            { key: 'view-products', view: View.ManageProducts, label: 'Katalog Produktów', permission: Permission.MANAGE_PRODUCTS },
-            { key: 'view-packaging-forms', view: View.ManagePackagingForms, label: 'Formy Opakowań', permission: Permission.MANAGE_PRODUCTS },
+            {
+                key: 'group-kartoteki',
+                label: 'Kartoteki',
+                icon: React.createElement(ListBulletIcon, { className: "h-5 w-5 opacity-80" }),
+                isGroup: true,
+                defaultOpen: false,
+                hidden: !isAdmin && isPsdOperator,
+                subItems: [
+                    { key: 'view-products', view: View.ManageProducts, label: 'Katalog Produktów', permission: Permission.MANAGE_PRODUCTS },
+                    { key: 'view-suppliers', view: View.ManageSuppliers, label: 'Kontrahenci (Dostawcy)' },
+                    { key: 'view-customers', view: View.ManageCustomers, label: 'Kontrahenci (Klienci)' },
+                    { key: 'view-packaging-forms', view: View.ManagePackagingForms, label: 'Formy Opakowań', permission: Permission.MANAGE_PRODUCTS },
+                ]
+            },
             { key: 'view-prod-stations', view: View.ManageProductionStations, label: 'Stacje Zasypowe', permission: Permission.MANAGE_PRODUCTION_STATIONS },
             { key: 'view-warehouse-admin', view: View.WarehouseAdmin, label: 'Lokalizacje Magazynowe', permission: Permission.MANAGE_SYSTEM_SETTINGS },
             { key: 'view-sidebar-settings', view: View.SidebarLayoutSettings, label: 'Konfiguracja Menu', permission: Permission.MANAGE_SYSTEM_SETTINGS },

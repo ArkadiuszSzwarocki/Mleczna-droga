@@ -142,6 +142,7 @@ const DispatchOrderDetailModal = lazy(() => import('./DispatchOrderDetailModal')
 const CreateInternalTransferModal = lazy(() => import('./CreateInternalTransferModal'));
 const DispatchInternalTransferModal = lazy(() => import('./DispatchInternalTransferModal'));
 const AddEditRecipeModal = lazy(() => import('./AddEditRecipeModal'));
+const AddEditPackagingFormModal = lazy(() => import('./AddEditPackagingFormModal'));
 
 const LoadingFallback = () => (
     <div className="w-full h-full flex items-center justify-center bg-slate-100 dark:bg-secondary-900">
@@ -426,6 +427,7 @@ export const AppContent = () => {
                 <EditLabNotesModal isOpen={modalState.isEditLabNotesModalOpen} onClose={modalHandlers.closeEditLabNotesModal} item={modalState.itemForLabNotes} onSave={(notes) => handleSaveLabNotes(modalState.itemForLabNotes.id, 'palletData' in modalState.itemForLabNotes, notes)} />
                 <NotificationCenter isOpen={modalState.isNotificationCenterOpen} onClose={modalHandlers.closeNotificationCenter} />
                 <AddEditUserModal isOpen={modalState.isAddEditUserModalOpen} onClose={modalHandlers.closeAddEditUserModal} userToEdit={modalState.userToEdit} />
+                <AddEditPackagingFormModal isOpen={modalState.isAddEditPackagingFormModalOpen} onClose={modalHandlers.closeAddEditPackagingFormModal} formToEdit={modalState.packagingFormToEdit} onSaved={() => {/* noop: components can refresh */}} />
                 <ResetPasswordModal isOpen={modalState.isResetPasswordModalOpen} onClose={modalHandlers.closeResetPasswordModal} user={modalState.userToResetPassword} />
                 <AddEditRecipeModal isOpen={modalState.isAddEditRecipeModalOpen} onClose={modalHandlers.closeAddEditRecipeModal} recipeToEdit={modalState.recipeToEdit} />
                 <TextDisplayModal isOpen={modalState.isTextDisplayModalOpen} onClose={modalHandlers.closeTextDisplayModal} title={modalState.textDisplayModalContent?.title} content={modalState.textDisplayModalContent?.content} />

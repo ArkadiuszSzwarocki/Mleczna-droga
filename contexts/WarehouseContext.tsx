@@ -120,6 +120,37 @@ export const WarehouseProvider: React.FC<PropsWithChildren> = ({ children }) => 
     
     const [managedLocations, setManagedLocations] = useState<LocationDefinition[]>(INITIAL_LOCATIONS);
 
+    // Pobierz lokalizacje z API (jeśli backend dostępny)
+    const fetchManagedLocations = useCallback(async () => {
+        try {
+            const res = await fetch(`${API_BASE_URL}/warehouse-locations`);
+            if (!res.ok) return;
+            const data = await res.json();
+            // Mapuj rekordy DB na LocationDefinition używane w aplikacji
+            const mapped: LocationDefinition[] = (data || []).map((r: any) => {
+                const code = r.code || (`WL-${r.id}`);
+                let type: LocationDefinition['type'] = 'zone';
+                const zone = (r.zone || '').toString().toLowerCase();
+                if (zone.includes('magaz') || (r.warehouse_id && r.warehouse_id !== null)) type = 'warehouse';
+                else if (zone.includes('rega') || /^r\d+/i.test(code)) type = 'rack';
+                else if (zone.includes('szt') || zone.includes('bin') || zone.includes('pola')) type = 'bin';
+
+                return {
+                    id: code,
+                    name: r.name || r.display_name || `Lok_${code}`,
+                    type,
+                    capacity: r.capacity || 0,
+                    description: r.zone || undefined,
+                } as LocationDefinition;
+            });
+
+            // Jeśli otrzymano cokolwiek, nadpisz lokalny stan
+            if (mapped.length > 0) setManagedLocations(mapped);
+        } catch (err) {
+            console.warn('Nie udało się pobrać lokalizacji z API, używane lokalne wartości:', err);
+        }
+    }, []);
+
     const [analysisRanges, setAnalysisRanges] = useState<AnalysisRange[]>(DEFAULT_ANALYSIS_RANGES);
     const [analysisRangesHistory, setAnalysisRangesHistory] = useState<AnalysisRangeHistoryEntry[]>([]);
 
@@ -162,11 +193,12 @@ export const WarehouseProvider: React.FC<PropsWithChildren> = ({ children }) => 
     // Pobierz dane na starcie i co 5 sekund
     useEffect(() => {
         fetchRawMaterials(); // Pobierz na starcie
+        fetchManagedLocations();
         const interval = setInterval(() => {
             fetchRawMaterials();
         }, 5000); // Odśwież co 5 sekund
         return () => clearInterval(interval);
-    }, []);
+    }, [fetchManagedLocations]);
 
     const logAnalysisRangeChange = useCallback((data: Omit<AnalysisRangeHistoryEntry, 'id' | 'timestamp' | 'user'>) => {
         const newEntry: AnalysisRangeHistoryEntry = {
@@ -324,20 +356,49 @@ export const WarehouseProvider: React.FC<PropsWithChildren> = ({ children }) => 
         return { success: true, message: "Przywrócono." };
     }, [currentUser, setRawMaterialsLogList, setFinishedGoodsList]);
 
-    const handleAddLocation = (loc: LocationDefinition) => {
-        if (managedLocations.some(l => l.id === loc.id)) return { success: false, message: 'Lokalizacja o tym ID już istnieje.' };
-        setManagedLocations(prev => [...prev, loc]);
-        return { success: true, message: 'Lokalizacja dodana.' };
+    const handleAddLocation = async (loc: LocationDefinition) => {
+        try {
+            const payload = { code: loc.id, name: loc.name, zone: loc.description || loc.type, capacity: loc.capacity };
+            const res = await fetch(`${API_BASE_URL}/warehouse-locations`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+            });
+            if (!res.ok) return { success: false, message: 'Błąd API podczas dodawania lokalizacji.' };
+            const body = await res.json();
+            // jeśli zwrócono id, dodaj do stanu
+            setManagedLocations(prev => [...prev, loc]);
+            return { success: true, message: 'Lokalizacja dodana.' };
+        } catch (err) {
+            console.error('Błąd dodawania lokalizacji:', err);
+            return { success: false, message: 'Błąd podczas dodawania lokalizacji.' };
+        }
     };
 
-    const handleUpdateLocation = (id: string, loc: LocationDefinition) => {
-        setManagedLocations(prev => prev.map(l => l.id === id ? loc : l));
-        return { success: true, message: 'Lokalizacja zaktualizowana.' };
+    const handleUpdateLocation = async (id: string, loc: LocationDefinition) => {
+        try {
+            const payload = { warehouse_id: null, code: loc.id, name: loc.name, zone: loc.description || loc.type, capacity: loc.capacity, is_active: true };
+            const res = await fetch(`${API_BASE_URL}/warehouse-locations/${encodeURIComponent(id)}`, {
+                method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+            });
+            if (!res.ok) return { success: false, message: 'Błąd API podczas aktualizacji lokalizacji.' };
+            setManagedLocations(prev => prev.map(l => l.id === id ? loc : l));
+            return { success: true, message: 'Lokalizacja zaktualizowana.' };
+        } catch (err) {
+            console.error('Błąd aktualizacji lokalizacji:', err);
+            return { success: false, message: 'Błąd podczas aktualizacji lokalizacji.' };
+        }
     };
 
-    const handleDeleteLocation = (id: string) => {
-        setManagedLocations(prev => prev.filter(l => l.id !== id));
-        return { success: true, message: 'Lokalizacja usunięta.' };
+    const handleDeleteLocation = async (id: string) => {
+        try {
+            // W API używamy soft-delete
+            const res = await fetch(`${API_BASE_URL}/warehouse-locations/${encodeURIComponent(id)}`, { method: 'DELETE' });
+            if (!res.ok) return { success: false, message: 'Błąd API podczas usuwania lokalizacji.' };
+            setManagedLocations(prev => prev.filter(l => l.id !== id));
+            return { success: true, message: 'Lokalizacja usunięta.' };
+        } catch (err) {
+            console.error('Błąd usuwania lokalizacji:', err);
+            return { success: false, message: 'Błąd podczas usuwania lokalizacji.' };
+        }
     };
 
     const handleDeleteDelivery = useCallback((deliveryId: string) => {

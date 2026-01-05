@@ -125,6 +125,8 @@ export const UIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
         productionChoiceModalProps: {},
         isAddEditRecipeModalOpen: false, 
         recipeToEdit: null, 
+        isAddEditPackagingFormModalOpen: false,
+        packagingFormToEdit: null,
     });
     const [globalSearchTerm, setGlobalSearchTerm] = useState('');
     
@@ -458,6 +460,7 @@ export const UIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
         openCreateInternalTransferModal: () => setModalState((p: any) => ({...p, isCreateInternalTransferModalOpen: true})),
         openDispatchInternalTransferModal: (order: InternalTransferOrder) => setModalState((p: any) => ({...p, isDispatchInternalTransferModalOpen: true, transferOrderForDispatch: order})),
         openAddEditRecipeModal: (recipe?: Recipe | null) => setModalState((p: any) => ({ ...p, isAddEditRecipeModalOpen: true, recipeToEdit: recipe })), 
+        openAddEditPackagingFormModal: (form?: any) => setModalState((p: any) => ({ ...p, isAddEditPackagingFormModalOpen: true, packagingFormToEdit: form })),
         
         showPinPrompt: (onSuccessCallback: () => void) => {
             if (isIdleLockEnabled) {
@@ -511,6 +514,7 @@ export const UIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
         closeCreateInternalTransferModal: () => setModalState((p: any) => ({...p, isCreateInternalTransferModalOpen: false})),
         closeDispatchInternalTransferModal: () => setModalState((p: any) => ({...p, isDispatchInternalTransferModalOpen: false, transferOrderForDispatch: null})),
         closeAddEditRecipeModal: () => setModalState((p: any) => ({ ...p, isAddEditRecipeModalOpen: false, recipeToEdit: null })), 
+        closeAddEditPackagingFormModal: () => setModalState((p: any) => ({ ...p, isAddEditPackagingFormModalOpen: false, packagingFormToEdit: null })),
     }), [isIdleLockEnabled, setIsIdleLockEnabled]);
     
     const value: UIContextValue = {

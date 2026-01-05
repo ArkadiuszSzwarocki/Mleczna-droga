@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { API_BASE_URL } from '../constants';
+import { useUIContext } from './contexts/UIContext';
 
 const ManagePackagingFormsPage: React.FC = () => {
     const [items, setItems] = useState<any[]>([]);
@@ -22,34 +23,8 @@ const ManagePackagingFormsPage: React.FC = () => {
 
     useEffect(() => { fetchItems(); }, []);
 
-    const handleAdd = async () => {
-        const name = window.prompt('Nazwa formy opakowania (np. Big Bag, Worek)');
-        if (!name) return;
-        const code = window.prompt('Kod (opcjonalnie)');
-        const type = window.prompt('Typ (np. big_bag, bags, box)');
-        const description = window.prompt('Opis (opcjonalnie)');
-        try {
-            const res = await fetch(`${API_BASE_URL}/packaging-forms`, {
-                method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name, code, type, description })
-            });
-            if (res.ok) fetchItems();
-        } catch (err) { console.error(err); }
-    };
-
-    const handleEdit = async (it: any) => {
-        const name = window.prompt('Nazwa formy opakowania', it.name) || it.name;
-        const code = window.prompt('Kod', it.code || '') || it.code;
-        const type = window.prompt('Typ', it.type || '') || it.type;
-        const description = window.prompt('Opis', it.description || '') || it.description;
-        try {
-            const res = await fetch(`${API_BASE_URL}/packaging-forms/${it.id}`, {
-                method: 'PUT', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name, code, type, description, is_active: true })
-            });
-            if (res.ok) fetchItems();
-        } catch (err) { console.error(err); }
-    };
+    const { modalHandlers } = useUIContext();
+    const openAddEditModal = (form?: any) => modalHandlers.openAddEditPackagingFormModal(form);
 
     const handleDelete = async (it: any) => {
         if (!window.confirm(`Usunąć formę opakowania "${it.name}"?`)) return;
@@ -62,35 +37,35 @@ const ManagePackagingFormsPage: React.FC = () => {
     return (
         <div className="p-6">
             <div className="flex items-center justify-between mb-4">
-                <h1 className="text-2xl font-bold">Formy Opakowań</h1>
+                <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Formy Opakowań</h1>
                 <div>
-                    <button className="px-3 py-2 bg-primary-600 text-white rounded" onClick={handleAdd}>Dodaj</button>
+                    <button className="px-3 py-2 bg-primary-600 text-white rounded" onClick={() => openAddEditModal(null)}>Dodaj</button>
                 </div>
             </div>
 
             {loading ? (
-                <div>Ładowanie...</div>
+                <div className="text-gray-700 dark:text-gray-300">Ładowanie...</div>
             ) : (
-                <div className="bg-white shadow rounded">
-                    <table className="min-w-full divide-y divide-gray-200">
-                        <thead className="bg-gray-50">
+                <div className="bg-white dark:bg-secondary-800 shadow rounded">
+                    <table className="min-w-full divide-y divide-gray-200 dark:divide-secondary-700">
+                        <thead className="bg-gray-50 dark:bg-secondary-800">
                             <tr>
-                                <th className="px-4 py-2 text-left">Nazwa</th>
-                                <th className="px-4 py-2 text-left">Kod</th>
-                                <th className="px-4 py-2 text-left">Typ</th>
-                                <th className="px-4 py-2 text-left">Opis</th>
-                                <th className="px-4 py-2 text-left">Akcje</th>
+                                <th className="px-4 py-2 text-left text-gray-700 dark:text-gray-300">Nazwa</th>
+                                <th className="px-4 py-2 text-left text-gray-700 dark:text-gray-300">Kod</th>
+                                <th className="px-4 py-2 text-left text-gray-700 dark:text-gray-300">Typ</th>
+                                <th className="px-4 py-2 text-left text-gray-700 dark:text-gray-300">Opis</th>
+                                <th className="px-4 py-2 text-left text-gray-700 dark:text-gray-300">Akcje</th>
                             </tr>
                         </thead>
-                        <tbody>
+                        <tbody className="bg-white dark:bg-secondary-800">
                             {items.map(it => (
-                                <tr key={it.id} className="hover:bg-gray-50">
-                                    <td className="px-4 py-2">{it.name}</td>
-                                    <td className="px-4 py-2">{it.code}</td>
-                                    <td className="px-4 py-2">{it.type}</td>
-                                    <td className="px-4 py-2">{it.description}</td>
+                                <tr key={it.id} className="hover:bg-gray-50 dark:hover:bg-secondary-700">
+                                    <td className="px-4 py-2 text-gray-900 dark:text-gray-100">{it.name}</td>
+                                    <td className="px-4 py-2 text-gray-900 dark:text-gray-100">{it.code}</td>
+                                    <td className="px-4 py-2 text-gray-900 dark:text-gray-100">{it.type}</td>
+                                    <td className="px-4 py-2 text-gray-900 dark:text-gray-100">{it.description}</td>
                                     <td className="px-4 py-2">
-                                        <button className="mr-2 text-sm text-blue-600" onClick={() => handleEdit(it)}>Edytuj</button>
+                                        <button className="mr-2 text-sm text-blue-600" onClick={() => openAddEditModal(it)}>Edytuj</button>
                                         <button className="text-sm text-red-600" onClick={() => handleDelete(it)}>Usuń</button>
                                     </td>
                                 </tr>
