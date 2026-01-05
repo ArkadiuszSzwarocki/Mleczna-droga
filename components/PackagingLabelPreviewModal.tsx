@@ -18,20 +18,16 @@ const PackagingLabelPreviewModal: React.FC<{ data: RawMaterialLogEntry }> = ({ d
     const { areLoaded: scriptsLoaded, error: scriptError } = useDynamicScripts(LABEL_SCRIPT_URLS);
 
     useEffect(() => {
-        if (scriptsLoaded && typeof JsBarcode !== 'undefined' && barcodeRef.current && palletData?.nrPalety) {
+        const displayId = data.id || palletData?.nrPalety;
+        if (scriptsLoaded && typeof JsBarcode !== 'undefined' && barcodeRef.current && displayId) {
             try {
-                JsBarcode(barcodeRef.current, palletData.nrPalety, {
-                    format: "CODE128", displayValue: false, margin: 0, width: 2, height: 50,
-                });
+                JsBarcode(barcodeRef.current, displayId, { format: "CODE128", displayValue: false, margin: 0, width: 2, height: 50 });
             } catch (e) { console.error("JsBarcode error:", e); }
         }
-        if (scriptsLoaded && typeof QRCode !== 'undefined' && qrCodeRef.current && palletData?.nrPalety) {
+        if (scriptsLoaded && typeof QRCode !== 'undefined' && qrCodeRef.current && displayId) {
             qrCodeRef.current.innerHTML = '';
             try {
-                new QRCode(qrCodeRef.current, {
-                    text: JSON.stringify({ nrPalety: palletData.nrPalety }),
-                    width: 100, height: 100, correctLevel: QRCode.CorrectLevel.H
-                });
+                new QRCode(qrCodeRef.current, { text: JSON.stringify({ id: displayId }), width: 100, height: 100, correctLevel: QRCode.CorrectLevel.H });
             } catch (e) { console.error("QRCode error:", e); }
         }
     }, [palletData, scriptsLoaded]);
@@ -53,7 +49,7 @@ const PackagingLabelPreviewModal: React.FC<{ data: RawMaterialLogEntry }> = ({ d
             <div className="flex justify-center my-3 min-h-[50px]">
                  {scriptsLoaded ? <svg ref={barcodeRef}></svg> : <span className="text-xs">Ładowanie...</span>}
             </div>
-            <p className="font-mono text-center -mt-2 mb-3">{palletData.nrPalety}</p>
+            <p className="font-mono text-center -mt-2 mb-3">{data.id || palletData.nrPalety}</p>
             
             <p className="font-bold text-center text-2xl my-4">Ilość: {ilosc} {jednostka}</p>
             

@@ -24,7 +24,7 @@ export const ArchivedDeliveriesPage: React.FC = () => {
     });
 
     const archivedDeliveries = useMemo(() =>
-        (deliveries || []).filter(d => d.status === 'COMPLETED'),
+        (deliveries || []).filter(d => d.status === 'ARCHIVED' || d.status === 'COMPLETED'),
         [deliveries]
     );
 

@@ -2,11 +2,19 @@
 <img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
 </div>
 
-# Run and deploy your AI Studio app
+# Mleczna-droga
 
-This contains everything you need to run your app locally.
+This repository contains everything you need to run the app locally.
 
-View your app in AI Studio: https://ai.studio/apps/drive/1DnWrfoDdQuFGnKjEly86WEW8cFCmQGjn
+**Wersja zapoznawcza**
+- **Wersja**: 0.1.0 (wersja zapoznawcza)
+- **Autor**: ArkadiuszSzwarocki
+- **Data**: 2026-01-05
+
+**Opis aplikacji**
+- **Cel**: System do zarządzania produkcją i magazynowaniem (m.in. receptury, zlecenia produkcyjne, mieszanki, palety, przesunięcia magazynowe).
+- **Technologie**: Frontend: React + Vite; Backend: Node.js / Express; Baza danych: MySQL (skrypty w [database/schema.sql](database/schema.sql)).
+- **Użytkownicy**: operatorzy produkcji, magazynierzy, planowanie produkcji i administracja.
 
 ## Run Locally
 

@@ -129,7 +129,18 @@ const StandardListView = <T extends { id: any; [key: string]: any }>({
                                     style={{ height: `${virtualRow.size}px`, transform: `translateY(${virtualRow.start}px)` }}
                                 >
                                     {columns.map(col => {
-                                        const cellContent = col.render ? col.render(item) : getNestedValue(item, col.key as string);
+                                                                let cellContent: any;
+                                                                if (col.render) {
+                                                                    cellContent = col.render(item);
+                                                                } else {
+                                                                    const keyPath = String(col.key);
+                                                                    if (keyPath === 'id') {
+                                                                        // Prefer displayId for user-facing ID, then palletData.nrPalety, then fallback to raw id
+                                                                        cellContent = (item && (item as any).displayId) || (item && (item as any).palletData && (item as any).palletData.nrPalety) || getNestedValue(item, keyPath);
+                                                                    } else {
+                                                                        cellContent = getNestedValue(item, keyPath);
+                                                                    }
+                                                                }
                                         return (
                                             <td key={String(col.key)} className={`flex-1 w-0 px-3 py-2 border-b dark:border-secondary-700 truncate ${col.cellClassName || ''}`}>
                                                 {cellContent}

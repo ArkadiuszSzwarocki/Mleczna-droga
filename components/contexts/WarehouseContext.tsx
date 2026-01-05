@@ -148,7 +148,9 @@ export const WarehouseProvider: React.FC<PropsWithChildren> = ({ children }) => 
                 const transformed: RawMaterialLogEntry[] = data.map((row: any) => ({
                     id: row.id,
                     palletData: {
-                        nrPalety: row.nrPalety,
+                        // Prefer the pallet code printed on the label (`nrPalety` / `pallet_id`) if present,
+                        // otherwise fall back to the DB `id` (18-digit code).
+                        nrPalety: row.nrPalety || row.id,
                         nazwa: row.nazwa,
                         dataProdukcji: row.dataProdukcji,
                         dataPrzydatnosci: row.dataPrzydatnosci,
@@ -238,7 +240,7 @@ export const WarehouseProvider: React.FC<PropsWithChildren> = ({ children }) => 
                         createdAt: row.created_at,
                         requiresLab: row.requires_lab === 1 || row.requires_lab === true,
                         destinationWarehouse: row.target_warehouse,
-                        warehouseStageCompletedAt: row.updated_at,
+                        warehouseStageCompletedAt: row.completed_at || row.updated_at,
                         correctionLog: [],
                         eventLog: []
                     }));
@@ -421,7 +423,9 @@ export const WarehouseProvider: React.FC<PropsWithChildren> = ({ children }) => 
                         setRawMaterialsLogList(rawData.map((row: any) => ({
                             id: row.id,
                             palletData: {
-                                nrPalety: row.nrPalety,
+                                // Prefer the pallet code printed on the label (`nrPalety` / `pallet_id`) if present,
+                                // otherwise fall back to the DB `id` (18-digit code).
+                                nrPalety: row.nrPalety || row.id,
                                 nazwa: row.nazwa,
                                 dataProdukcji: row.dataProdukcji,
                                 dataPrzydatnosci: row.dataPrzydatnosci,

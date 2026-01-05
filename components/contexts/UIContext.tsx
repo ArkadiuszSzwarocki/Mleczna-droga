@@ -345,13 +345,21 @@ export const UIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
         if (!term) return [];
         
         const results: CombinedSearchResult[] = [];
-        
+
+        // normalize helper: lowercase + remove non-alphanumeric so numeric subparts match
+        const normalize = (s: any) => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+        const normTerm = normalize(term);
+
         (rawMaterialsLogList || []).forEach((item: RawMaterialLogEntry) => {
             const displayId = item.palletData.nrPalety;
             const name = item.palletData.nazwa;
             const location = item.currentLocation || '';
-            
-            if (displayId.toLowerCase().includes(term) || name.toLowerCase().includes(term) || location.toLowerCase().includes(term)) {
+
+            const matchByDisplay = normalize(displayId).includes(normTerm);
+            const matchByName = normalize(name).includes(normTerm);
+            const matchByLocation = normalize(location).includes(normTerm);
+
+            if (matchByDisplay || matchByName || matchByLocation) {
                 const { isBlocked, reason } = getBlockInfo(item);
                 const expiryStatus = getExpiryStatus(item.palletData, expiryWarningDays, expiryCriticalDays);
                 results.push({
@@ -367,7 +375,10 @@ export const UIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
             const name = item.productName;
             const location = item.currentLocation || '';
             
-            if (displayId.toLowerCase().includes(term) || name.toLowerCase().includes(term) || location.toLowerCase().includes(term)) {
+            const matchByDisplay = normalize(displayId).includes(normTerm);
+            const matchByName = normalize(name).includes(normTerm);
+            const matchByLocation = normalize(location).includes(normTerm);
+            if (matchByDisplay || matchByName || matchByLocation) {
                 const { isBlocked, reason } = getBlockInfo(item);
                 const expiryStatus = getExpiryStatus({ dataPrzydatnosci: item.expiryDate } as any, expiryWarningDays, expiryCriticalDays);
                 results.push({
@@ -383,7 +394,10 @@ export const UIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
             const name = item.productName;
             const location = item.currentLocation || '';
 
-            if (displayId.toLowerCase().includes(term) || name.toLowerCase().includes(term) || location.toLowerCase().includes(term)) {
+            const matchByDisplay = normalize(displayId).includes(normTerm);
+            const matchByName = normalize(name).includes(normTerm);
+            const matchByLocation = normalize(location).includes(normTerm);
+            if (matchByDisplay || matchByName || matchByLocation) {
                  results.push({
                     id: item.id, displayId: item.id, name: item.productName, isRaw: true,
                     location: item.currentLocation, status: 'Dostępny', isBlocked: false,

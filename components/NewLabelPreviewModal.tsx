@@ -33,10 +33,11 @@ const NewLabelPreviewModal: React.FC<{ data: RawMaterialLogEntry }> = ({ data })
     }, [data]);
 
     useEffect(() => {
-        if (scriptsLoaded && typeof JsBarcode !== 'undefined' && barcodeRef.current && palletData?.nrPalety) {
+        const displayId = data.id || palletData?.nrPalety;
+        if (scriptsLoaded && typeof JsBarcode !== 'undefined' && barcodeRef.current && displayId) {
             barcodeRef.current.innerHTML = '';
             try {
-                JsBarcode(barcodeRef.current, palletData.nrPalety, {
+                JsBarcode(barcodeRef.current, displayId, {
                     format: "CODE128",
                     displayValue: false,
                     margin: 0,
@@ -47,9 +48,9 @@ const NewLabelPreviewModal: React.FC<{ data: RawMaterialLogEntry }> = ({ data })
                 console.error("JsBarcode error:", e);
             }
         }
-        if (scriptsLoaded && typeof QRCode !== 'undefined' && qrCodeRef.current && palletData?.nrPalety) {
+        if (scriptsLoaded && typeof QRCode !== 'undefined' && qrCodeRef.current && displayId) {
             qrCodeRef.current.innerHTML = '';
-            const qrData = JSON.stringify({ nrPalety: palletData.nrPalety }).replace(/"/g, '""');
+            const qrData = JSON.stringify({ id: displayId }).replace(/"/g, '""');
             try {
                 new QRCode(qrCodeRef.current, {
                     text: qrData,
@@ -61,7 +62,7 @@ const NewLabelPreviewModal: React.FC<{ data: RawMaterialLogEntry }> = ({ data })
                 console.error("QRCode error:", e);
             }
         }
-    }, [palletData?.nrPalety, scriptsLoaded]);
+    }, [data.id, palletData?.nrPalety, scriptsLoaded]);
 
 
     if (!palletData) return null;
@@ -105,7 +106,7 @@ const NewLabelPreviewModal: React.FC<{ data: RawMaterialLogEntry }> = ({ data })
                 <div className="flex justify-center my-2 min-h-[60px]">
                     {scriptsLoaded ? <svg ref={barcodeRef}></svg> : <span className="text-xs">Ładowanie...</span>}
                 </div>
-                <p className="font-mono text-center text-2xl -mt-2 mb-3">{palletData.nrPalety}</p>
+                <p className="font-mono text-center text-2xl -mt-2 mb-3">{data.id || palletData.nrPalety}</p>
                 
                 <div className="border border-black p-2 my-2 text-md">
                     <div className="grid grid-cols-2 gap-x-2">

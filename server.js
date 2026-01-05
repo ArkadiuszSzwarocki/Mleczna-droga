@@ -69,6 +69,19 @@ const generateToken = (user) => {
     );
 };
 
+// Generuje 18-cyfrowy identyfikator palety (liczony od 1982-06-07 w ms)
+const generate18DigitId = () => {
+    const epoch1982 = new Date('1982-06-07T00:00:00Z').getTime();
+    const diff = Math.max(0, Date.now() - epoch1982);
+    const base = `${diff}`;
+    const needed = 18 - base.length;
+    if (needed > 0) {
+        const randomPart = Math.floor(Math.random() * Math.pow(10, needed)).toString().padStart(needed, '0');
+        return `${base}${randomPart}`;
+    }
+    return base.substring(0, 18);
+};
+
 // Konfiguracja bazy danych pobierana ze zmiennych środowiskowych
 let dbConfig = {
     host: process.env.DB_HOST || 'localhost',
@@ -574,7 +587,7 @@ app.post('/api/import-products', upload.single('file'), async (req, res) => {
             if (parts.length < 1) continue;
             const code = parts[0];
             const group = parts[1] || 'inne';
-            const id = `RM-${code}`;
+            const id = generate18DigitId();
             try {
                 const [result] = await pool.execute(
                     `INSERT IGNORE INTO raw_materials (id, nrPalety, nazwa, productGroup, initialWeight, currentWeight, isBlocked, unit) VALUES (?, ?, ?, ?, 0, 0, 0, 'kg')`,
@@ -1162,7 +1175,7 @@ app.post('/api/deliveries/:id/finalize', async (req, res) => {
             `, [palletId, completedBy, item.id]);
             
             // Utwórz paletę w magazynie (raw_materials)
-            const rmId = `RM-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+            const rmId = generate18DigitId();
             await pool.execute(`
                 INSERT INTO raw_materials 
                 (id, nrPalety, nazwa, dataProdukcji, dataPrzydatnosci, initialWeight, currentWeight, 
@@ -2142,8 +2155,9 @@ app.post('/api/raw-materials', async (req, res) => {
     try {
         const sql = `INSERT INTO raw_materials (id, nrPalety, nazwa, dataProdukcji, dataPrzydatnosci, initialWeight, currentWeight, isBlocked, blockReason, currentLocation, batchNumber, packageForm, unit, labAnalysisNotes)
                      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+        const newId = id || generate18DigitId();
         const params = [
-            id || `RM-${Date.now()}`,
+            newId,
             nrPalety,
             nazwa,
             dataProdukcji,
@@ -2159,7 +2173,7 @@ app.post('/api/raw-materials', async (req, res) => {
             labAnalysisNotes
         ];
         const [result] = await pool.execute(sql, params);
-        res.json({ success: true, insertId: id || `RM-${Date.now()}` });
+        res.json({ success: true, insertId: newId });
     } catch (err) {
         console.error(err);
         res.status(500).json({ error: 'Błąd tworzenia surowca', details: err.message });

@@ -85,6 +85,39 @@
         -ms-overflow-style: none;
         scrollbar-width: none;
     }
+
+    /* Improve global text contrast for dark mode (applies when `dark` class is on html or body) */
+    :root {
+      --dark-text: #cbd5e1; /* readable light gray */
+      --dark-muted: #94a3b8;
+      --dark-link: #93c5fd;
+    }
+
+    .dark, .dark body, html.dark, body.dark {
+      color: var(--dark-text) !important;
+    }
+
+    /* Target common text utilities and table cells inside dark mode */
+    .dark table, .dark thead th, .dark tbody td, .dark th, .dark td,
+    .dark .px-3, .dark .py-2, .dark .text-sm, .dark .text-xs, .dark .font-mono {
+      color: var(--dark-text) !important;
+    }
+
+    /* Override explicit Tailwind gray/black text classes when in dark mode */
+    .dark .text-gray-500, .dark .text-gray-600, .dark .text-gray-700, .dark .text-gray-400,
+    .dark .text-black {
+      color: var(--dark-text) !important;
+    }
+
+    /* Links and interactive elements */
+    .dark a, .dark button, .dark .btn, .dark .button {
+      color: var(--dark-link) !important;
+    }
+
+    /* Slightly muted metadata */
+    .dark .muted, .dark .text-muted {
+      color: var(--dark-muted) !important;
+    }
   </style>
 
   <script src="https://cdn.tailwindcss.com"></script>
@@ -152,20 +185,14 @@
 
   <script type="importmap">
 {
-  "imports": {
-    "react-dom": "https://aistudiocdn.com/react-dom@^19.2.0",
-    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
-    "react/": "https://aistudiocdn.com/react@^19.2.0/",
-    "react": "https://aistudiocdn.com/react@^19.2.0",
+    "imports": {
+    "react": "https://esm.sh/react@^19.2.0",
+    "react-dom": "https://esm.sh/react-dom@^19.2.0",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.0/",
     "@tanstack/react-virtual": "https://unpkg.com/@tanstack/react-virtual@3.5.0/dist/esm/index.js",
     "@tanstack/virtual-core": "https://unpkg.com/@tanstack/virtual-core@3.5.0/dist/esm/index.js",
     "zustand": "https://unpkg.com/zustand@4.5.2/esm/index.mjs",
     "zustand/middleware": "https://unpkg.com/zustand@4.5.2/esm/middleware.mjs",
-    "@playwright/test": "https://aistudiocdn.com/@playwright/test@^1.57.0",
-    "@testing-library/jest-dom": "https://aistudiocdn.com/@testing-library/jest-dom@^6.9.1",
-    "@testing-library/react": "https://aistudiocdn.com/@testing-library/react@^16.3.0",
-    "@vitejs/plugin-react": "https://aistudiocdn.com/@vitejs/plugin-react@^5.1.1",
-    "vite": "https://aistudiocdn.com/vite@^7.2.6",
     "body-parser": "https://esm.sh/body-parser@^2.2.1",
     "express": "https://esm.sh/express@^5.2.1",
     "net": "https://esm.sh/net@^1.0.2",
