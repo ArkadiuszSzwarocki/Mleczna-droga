@@ -250,10 +250,43 @@ export const AuthProvider: React.FC<PropsWithChildren> = ({ children }) => {
         if (rolePermissions[normalizedRoleName]) {
             return { success: false, message: `Rola '${normalizedRoleName}' już istnieje.` };
         }
+
+        // Optymistyczne dodanie po stronie klienta
         setRolePermissions(prev => ({
             ...prev,
             [normalizedRoleName]: []
         }));
+
+        // Wyślij do API, jeśli nie uda się zapisać na serwerze - cofamy zmianę
+        try {
+            const roleId = normalizedRoleName.toLowerCase().replace(/\s+/g, '_');
+            fetch(`${API_BASE_URL}/roles`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: roleId, label: roleName })
+            }).then(res => {
+                if (!res.ok) {
+                    setRolePermissions(prev => {
+                        const cp = { ...prev } as any;
+                        delete cp[normalizedRoleName];
+                        return cp;
+                    });
+                    console.error('Błąd zapisu roli na serwerze', res.statusText);
+                } else {
+                    console.log('Rola zapisana na serwerze', roleId);
+                }
+            }).catch(err => {
+                setRolePermissions(prev => {
+                    const cp = { ...prev } as any;
+                    delete cp[normalizedRoleName];
+                    return cp;
+                });
+                console.error('Błąd sieci przy zapisie roli', err);
+            });
+        } catch (err) {
+            console.error('Błąd wysyłania żądania dodania roli:', err);
+        }
+
         return { success: true, message: `Rola '${normalizedRoleName}' została dodana.` };
     };
 

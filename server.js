@@ -704,15 +704,29 @@ app.get('/api/suppliers', async (req, res) => {
 // POST: Tworzenie nowego dostawcy
 app.post('/api/suppliers', async (req, res) => {
     const { name, nip, address, city, postal_code, country, contact_person, phone, email, notes } = req.body;
+    console.log('📝 POST /api/suppliers body:', req.body);
     try {
+        const params = [
+            name || null,
+            nip || null,
+            address || null,
+            city || null,
+            postal_code || null,
+            country || 'Polska',
+            contact_person || null,
+            phone || null,
+            email || null,
+            notes || null
+        ];
         const [result] = await pool.execute(`
             INSERT INTO suppliers (name, nip, address, city, postal_code, country, contact_person, phone, email, notes)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `, [name, nip, address, city, postal_code, country || 'Polska', contact_person, phone, email, notes]);
+        `, params);
         
+        console.log('✅ Utworzono dostawcę, insertId=', result.insertId);
         res.json({ success: true, id: result.insertId });
     } catch (err) {
-        console.error('❌ Błąd tworzenia dostawcy:', err);
+        console.error('❌ Błąd tworzenia dostawcy:', err, err && err.sqlMessage, err && err.code);
         res.status(500).json({ error: 'Błąd tworzenia dostawcy' });
     }
 });
@@ -733,6 +747,20 @@ app.put('/api/suppliers/:id', async (req, res) => {
     } catch (err) {
         console.error('❌ Błąd aktualizacji dostawcy:', err);
         res.status(500).json({ error: 'Błąd aktualizacji dostawcy' });
+    }
+});
+
+// DELETE: Usuwanie dostawcy
+app.delete('/api/suppliers/:id', async (req, res) => {
+    const { id } = req.params;
+    try {
+        // Usuń dostawcę; foreign key w tabeli deliveries ma ON DELETE SET NULL
+        await pool.execute('DELETE FROM suppliers WHERE id = ?', [id]);
+        console.log(`✅ Usunięto dostawcę id=${id}`);
+        res.json({ success: true });
+    } catch (err) {
+        console.error('❌ Błąd usuwania dostawcy:', err);
+        res.status(500).json({ error: 'Błąd usuwania dostawcy' });
     }
 });
 
@@ -1828,8 +1856,11 @@ async function initRawMaterialsTable() {
         
         // Dodanie definicji surowców
         try {
+            // Lista kodów surowców, które nie są fizycznymi numerami palet
+            // i nie powinny znajdować się w tabeli `raw_materials`.
+            // Zamiast wstawiać te pozycje do `raw_materials`, usuwamy je jeśli istnieją.
             const rawMaterialsData = [
-                ['BM2448', 'bm'], ['BM2455', 'bm'], ['BM2974', 'bm'], ['BM2981', 'bm'], ['BM2998', 'bm'],
+               ['BM2448', 'bm'], ['BM2455', 'bm'], ['BM2974', 'bm'], ['BM2981', 'bm'], ['BM2998', 'bm'],
                 ['BM3001', 'bm'], ['BM3285', 'bm'], ['BM3308', 'bm'], ['BM3322', 'bm'], ['BM3995', 'bm'],
                 ['BM4008', 'bm'], ['BM4015', 'bm'], ['BM4022', 'bm'], ['BM4039', 'bm'], ['BM4046', 'bm'],
                 ['BM4053', 'bm'], ['BM4060', 'bm'], ['BM4077', 'bm'], ['BM4084', 'bm'], ['BM4091', 'bm'],
@@ -1877,18 +1908,21 @@ async function initRawMaterialsTable() {
                 ['RO3599', 'roślinne'], ['RO3605', 'roślinne'], ['RO3612', 'roślinne'], ['RO3698', 'roślinne'],
                 ['RO3704', 'roślinne'], ['RO3711', 'roślinne'], ['RO3728', 'roślinne'], ['RO3919', 'roślinne'],
                 ['RO3926', 'roślinne'], ['RO3964', 'roślinne']
-            ];
-            
-            for (const [kod, grupa] of rawMaterialsData) {
-                const id = `RM-${kod}`;
-                await pool.execute(
-                    `INSERT INTO raw_materials (id, nrPalety, nazwa, productGroup, initialWeight, currentWeight, isBlocked, unit)
-                     VALUES (?, ?, ?, ?, 0, 0, 0, 'kg')
-                     ON DUPLICATE KEY UPDATE nazwa = VALUES(nazwa), productGroup = VALUES(productGroup)`,
-                    [id, kod, kod, grupa]
-                );
+            ]; 
+
+            // Usuń ewentualne wpisy tych kodów z tabeli raw_materials
+            try {
+                for (const [kod] of rawMaterialsData) {
+                    const id = `RM-${kod}`;
+                    await pool.execute(
+                        `DELETE FROM raw_materials WHERE id = ? OR nrPalety = ?`,
+                        [id, kod]
+                    );
+                }
+                console.log(`✅ Usunięto możliwe wpisy (${rawMaterialsData.length}) z tabeli raw_materials`);
+            } catch (errCleanup) {
+                console.log('⚠️ Błąd podczas usuwania katalogowych kodów z raw_materials:', errCleanup.message);
             }
-            console.log(`✅ Zsynchronizowano ${rawMaterialsData.length} definicji surowców`);
         } catch (err) {
             console.log('⚠️ Błąd podczas dodawania surowców:', err.message);
         }
@@ -2002,6 +2036,77 @@ app.get('/api/roles', async (req, res) => {
     } catch (err) {
         console.error('❌ Błąd pobierania ról:', err);
         res.status(500).json({ error: 'Błąd pobierania ról' });
+    }
+});
+
+// POST: Dodaj nową rolę
+app.post('/api/roles', async (req, res) => {
+    try {
+        const { id, label } = req.body;
+        const normalizedId = id && String(id).trim() ? String(id).trim() : (label ? String(label).toLowerCase().replace(/\s+/g, '_') : null);
+        if (!normalizedId) return res.status(400).json({ error: 'Brak id lub label roli' });
+
+        await pool.execute('INSERT INTO roles (id, label) VALUES (?, ?) ON DUPLICATE KEY UPDATE label = VALUES(label)', [normalizedId, label || normalizedId]);
+        console.log(`✅ Dodano rolę ${normalizedId}`);
+        res.json({ success: true, id: normalizedId });
+    } catch (err) {
+        console.error('❌ Błąd dodawania roli:', err.message || err);
+        res.status(500).json({ error: 'Błąd dodawania roli' });
+    }
+});
+
+// DELETE: Usuń rolę
+app.delete('/api/roles/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        if (!id) return res.status(400).json({ error: 'Brak id roli' });
+        await pool.execute('DELETE FROM roles WHERE id = ?', [id]);
+        console.log(`✅ Usunięto rolę ${id}`);
+        res.json({ success: true });
+    } catch (err) {
+        console.error('❌ Błąd usuwania roli:', err.message || err);
+        res.status(500).json({ error: 'Błąd usuwania roli' });
+    }
+});
+
+// GET: Pobierz wszystkie oddziały (sub_roles)
+app.get('/api/sub-roles', async (req, res) => {
+    try {
+        const [rows] = await pool.query('SELECT id, name FROM sub_roles ORDER BY id');
+        res.json(rows);
+    } catch (err) {
+        console.error('❌ Błąd pobierania oddziałów:', err.message || err);
+        res.status(500).json({ error: 'Błąd pobierania oddziałów' });
+    }
+});
+
+// POST: Dodaj nowy oddział (sub_role)
+app.post('/api/sub-roles', async (req, res) => {
+    try {
+        const { id, name } = req.body;
+        const normalizedId = id && String(id).trim() ? String(id).trim().toUpperCase() : (name ? String(name).trim().toUpperCase().replace(/\s+/g, '_') : null);
+        if (!normalizedId) return res.status(400).json({ error: 'Brak id lub name oddziału' });
+
+        await pool.execute('INSERT INTO sub_roles (id, name) VALUES (?, ?) ON DUPLICATE KEY UPDATE name = VALUES(name)', [normalizedId, name || normalizedId]);
+        console.log(`✅ Dodano oddział ${normalizedId}`);
+        res.json({ success: true, id: normalizedId });
+    } catch (err) {
+        console.error('❌ Błąd dodawania oddziału:', err.message || err);
+        res.status(500).json({ error: 'Błąd dodawania oddziału' });
+    }
+});
+
+// DELETE: Usuń oddział
+app.delete('/api/sub-roles/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        if (!id) return res.status(400).json({ error: 'Brak id oddziału' });
+        await pool.execute('DELETE FROM sub_roles WHERE id = ?', [id]);
+        console.log(`✅ Usunięto oddział ${id}`);
+        res.json({ success: true });
+    } catch (err) {
+        console.error('❌ Błąd usuwania oddziału:', err.message || err);
+        res.status(500).json({ error: 'Błąd usuwania oddziału' });
     }
 });
 

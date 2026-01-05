@@ -49,6 +49,7 @@ export const AuthProvider: React.FC<PropsWithChildren> = ({ children }) => {
     
     const [rolePermissions, setRolePermissions] = useState<Record<string, Permission[]>>({});
     const [allSubRoles, setAllSubRoles] = useState<string[]>(['AGRO', 'OSIP']);
+    const [dbSubRoles, setDbSubRoles] = useState<any[]>([]);
     const [dbRoles, setDbRoles] = useState<any[]>([]);
 
     // Funkcja pomocnicza do dekodowania base64 z obsługą UTF-8
@@ -149,21 +150,52 @@ export const AuthProvider: React.FC<PropsWithChildren> = ({ children }) => {
         // Pobierz użytkowników przy starcie
         fetchUsersFromAPI();
         
-        // Pobierz role z bazy danych
-        const fetchRolesFromAPI = async () => {
+        // Funkcja do odświeżania listy ról z API
+        const refreshRolesFromAPI = async () => {
             try {
                 const response = await fetch(`${API_BASE_URL}/roles`);
                 if (response.ok) {
                     const apiRoles = await response.json();
                     setDbRoles(apiRoles);
                     console.log('✅ Role pobrane z bazy:', apiRoles);
+                } else {
+                    console.log('ℹ️ Błąd pobierania ról z API:', response.status);
                 }
             } catch (error) {
                 console.log('⚠️ Nie mogę pobrać ról z bazy:', error);
             }
         };
-        
-        fetchRolesFromAPI();
+
+        // Wywołaj odświeżanie ról
+        refreshRolesFromAPI();
+
+        // Pobierz oddziały (sub_roles)
+        const refreshSubRolesFromAPI = async () => {
+            try {
+                const resp = await fetch(`${API_BASE_URL}/sub-roles`);
+                if (resp.ok) {
+                    const list = await resp.json();
+                    setDbSubRoles(list);
+                    // map to ids
+                    const ids = list.map((r: any) => r.id);
+                    setAllSubRoles(ids);
+                    console.log('✅ Oddziały pobrane z bazy:', ids);
+                }
+            } catch (err) {
+                console.warn('⚠️ Nie udało się pobrać sub_roles z API', err);
+            }
+        };
+
+        // Initial fetch
+        refreshSubRolesFromAPI();
+
+        // Polling: odświeżaj role i oddziały co 10 sekund, aby przechwycić zmiany w bazie dokonane z zewnątrz
+        const interval = setInterval(() => {
+            try { refreshRolesFromAPI(); } catch (e) { /* ignore */ }
+            try { refreshSubRolesFromAPI(); } catch (e) { /* ignore */ }
+        }, 10000);
+
+        return () => clearInterval(interval);
     }, []);
 
     const allRoles = useMemo(() => {
@@ -486,10 +518,45 @@ export const AuthProvider: React.FC<PropsWithChildren> = ({ children }) => {
         if (rolePermissions[normalizedRoleName]) {
             return { success: false, message: `Rola '${normalizedRoleName}' już istnieje.` };
         }
+        // Optymistyczne dodanie w UI
         setRolePermissions(prev => ({
             ...prev,
             [normalizedRoleName]: []
         }));
+
+        // Przygotuj id dla bazy (bez spacji, małe litery)
+        const roleId = normalizedRoleName.toLowerCase().replace(/\s+/g, '_');
+
+        // Wyślij żądanie do API i poczekaj na odpowiedź. Jeśli się nie uda - cofnij zmianę.
+        (async () => {
+            try {
+                const resp = await fetch(`${API_BASE_URL}/roles`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id: roleId, label: roleName })
+                });
+                if (!resp.ok) {
+                    // Cofnij optymistyczne dodanie
+                    setRolePermissions(prev => {
+                        const copy = { ...prev } as any;
+                        delete copy[normalizedRoleName];
+                        return copy;
+                    });
+                    console.error('Błąd zapisu roli na serwerze', await resp.text());
+                } else {
+                    // Odśwież listę ról z bazy
+                    try { await refreshRolesFromAPI(); } catch (e) { /* ignore */ }
+                }
+            } catch (err) {
+                setRolePermissions(prev => {
+                    const copy = { ...prev } as any;
+                    delete copy[normalizedRoleName];
+                    return copy;
+                });
+                console.error('Błąd sieci przy zapisie roli:', err);
+            }
+        })();
+
         return { success: true, message: `Rola '${normalizedRoleName}' została dodana.` };
     };
 
@@ -498,13 +565,34 @@ export const AuthProvider: React.FC<PropsWithChildren> = ({ children }) => {
             return { success: false, message: `Nie można usunąć systemowej roli '${roleName}'.` };
         }
 
+        // Degradacja użytkowników w UI
         setUsers(prev => prev.map(u => u.role === roleName ? { ...u, role: 'user' } : u));
 
+        // Usuń lokalnie mapowanie uprawnień
         setRolePermissions(prev => {
             const newPermissions = { ...prev };
             delete newPermissions[roleName];
             return newPermissions;
         });
+
+        // Wyślij żądanie do API aby usunąć rolę z bazy
+        (async () => {
+            try {
+                const roleId = roleName.toLowerCase().replace(/\s+/g, '_');
+                const token = localStorage.getItem('jwt_token');
+                const headers: any = { 'Content-Type': 'application/json' };
+                if (token) headers['Authorization'] = `Bearer ${token}`;
+                const resp = await fetch(`${API_BASE_URL}/roles/${encodeURIComponent(roleId)}`, { method: 'DELETE', headers });
+                if (!resp.ok) {
+                    console.error('Błąd usuwania roli na serwerze', await resp.text());
+                } else {
+                    try { await refreshRolesFromAPI(); } catch (e) { /* ignore */ }
+                }
+            } catch (err) {
+                console.error('Błąd sieci przy usuwaniu roli:', err);
+            }
+        })();
+
         return { success: true, message: `Rola '${roleName}' została usunięta, użytkownicy przeniesieni do 'user'.` };
     };
 
@@ -586,14 +674,74 @@ export const AuthProvider: React.FC<PropsWithChildren> = ({ children }) => {
     const handleAddSubRole = (name: string) => {
         const normalized = name.trim().toUpperCase();
         if (allSubRoles.includes(normalized)) return { success: false, message: 'Taki oddział już istnieje.' };
+
+        // Optymistyczne dodanie lokalne
         setAllSubRoles(prev => [...prev, normalized]);
+
+        // Wyślij do API i odśwież z bazy
+        (async () => {
+            try {
+                const resp = await fetch(`${API_BASE_URL}/sub-roles`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id: normalized, name })
+                });
+                if (!resp.ok) {
+                    // cofnięcie
+                    setAllSubRoles(prev => prev.filter(r => r !== normalized));
+                    console.error('Błąd zapisu oddziału na serwerze', await resp.text());
+                } else {
+                    try {
+                        const rr = await fetch(`${API_BASE_URL}/sub-roles`);
+                        if (rr.ok) {
+                            const list = await rr.json();
+                            setDbSubRoles(list);
+                            setAllSubRoles(list.map((r: any) => r.id));
+                        }
+                    } catch (e) { /* ignore */ }
+                }
+            } catch (err) {
+                setAllSubRoles(prev => prev.filter(r => r !== normalized));
+                console.error('Błąd sieci przy zapisie oddziału:', err);
+            }
+        })();
+
         return { success: true, message: `Dodano oddział ${normalized}.` };
     };
 
     const handleDeleteSubRole = (name: string) => {
         if (['AGRO', 'OSIP'].includes(name)) return { success: false, message: 'Nie można usunąć oddziałów podstawowych.' };
-        setAllSubRoles(prev => prev.filter(r => r !== name));
+
+        // Degradacja użytkowników lokalnie
         setUsers(prev => prev.map(u => u.subRole === name ? {...u, subRole: 'AGRO'} : u));
+
+        // Optymistyczne usunięcie lokalne
+        setAllSubRoles(prev => prev.filter(r => r !== name));
+
+        // Wyślij żądanie do API
+        (async () => {
+            try {
+                const token = localStorage.getItem('jwt_token');
+                const headers: any = { 'Content-Type': 'application/json' };
+                if (token) headers['Authorization'] = `Bearer ${token}`;
+                const resp = await fetch(`${API_BASE_URL}/sub-roles/${encodeURIComponent(name)}`, { method: 'DELETE', headers });
+                if (!resp.ok) {
+                    console.error('Błąd usuwania oddziału na serwerze', await resp.text());
+                } else {
+                    try {
+                        const rr = await fetch(`${API_BASE_URL}/sub-roles`);
+                        if (rr.ok) {
+                            const list = await rr.json();
+                            setDbSubRoles(list);
+                            setAllSubRoles(list.map((r: any) => r.id));
+                        }
+                    } catch (e) { /* ignore */ }
+                }
+            } catch (err) {
+                console.error('Błąd sieci przy usuwaniu oddziału:', err);
+            }
+        })();
+
         return { success: true, message: 'Oddział usunięty.' };
     };
     

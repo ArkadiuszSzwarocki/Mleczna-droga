@@ -151,6 +151,29 @@ export const WarehouseProvider: React.FC<PropsWithChildren> = ({ children }) => 
         }
     }, []);
 
+    // Pobierz listę dostawców z backendu
+    const fetchSuppliers = useCallback(async () => {
+        try {
+            const res = await fetch(`${API_BASE_URL}/suppliers`);
+            if (!res.ok) return;
+            const data = await res.json();
+            const mapped: Supplier[] = (data || []).map((s: any) => ({
+                value: String(s.id),
+                label: s.name,
+                nip: s.nip || undefined,
+                address: s.address || undefined,
+                city: s.city || undefined,
+                zip: s.postal_code || undefined,
+                email: s.email || undefined,
+                phone: s.phone || undefined,
+                notes: s.notes || undefined
+            }));
+            setSuppliers(mapped);
+        } catch (err) {
+            console.warn('Nie udało się pobrać dostawców z API:', err);
+        }
+    }, []);
+
     const [analysisRanges, setAnalysisRanges] = useState<AnalysisRange[]>(DEFAULT_ANALYSIS_RANGES);
     const [analysisRangesHistory, setAnalysisRangesHistory] = useState<AnalysisRangeHistoryEntry[]>([]);
 
@@ -194,11 +217,21 @@ export const WarehouseProvider: React.FC<PropsWithChildren> = ({ children }) => 
     useEffect(() => {
         fetchRawMaterials(); // Pobierz na starcie
         fetchManagedLocations();
+        fetchSuppliers();
         const interval = setInterval(() => {
             fetchRawMaterials();
+            // odśwież dostawców co 30s w tle
         }, 5000); // Odśwież co 5 sekund
-        return () => clearInterval(interval);
-    }, [fetchManagedLocations]);
+
+        const suppliersInterval = setInterval(() => {
+            fetchSuppliers();
+        }, 30000);
+
+        return () => {
+            clearInterval(interval);
+            clearInterval(suppliersInterval);
+        };
+    }, [fetchManagedLocations, fetchSuppliers]);
 
     const logAnalysisRangeChange = useCallback((data: Omit<AnalysisRangeHistoryEntry, 'id' | 'timestamp' | 'user'>) => {
         const newEntry: AnalysisRangeHistoryEntry = {
@@ -563,11 +596,75 @@ export const WarehouseProvider: React.FC<PropsWithChildren> = ({ children }) => 
         handleStartInventorySession: () => ({ success: true, message: 'OK' }),
         handleCancelInventorySession: () => ({ success: true, message: 'OK' }),
         suppliers, customers, palletBalances, palletTransactions,
-        handleAddSupplier: (n: any) => ({ success: true, message: 'OK' }),
-        handleDeleteSupplier: (v: any) => ({ success: true, message: 'OK' }),
-        handleUpdateSupplier: (value: string, data: Supplier) => {
-            setSuppliers(prev => prev.map(s => s.value === value ? data : s));
-            return { success: true, message: 'Zaktualizowano dostawcę.' };
+        handleAddSupplier: async (name: string) => {
+            try {
+                const token = localStorage.getItem('jwt_token');
+                const headers: any = { 'Content-Type': 'application/json' };
+                if (token) headers['Authorization'] = `Bearer ${token}`;
+                const resp = await fetch(`${API_BASE_URL}/suppliers`, {
+                    method: 'POST',
+                    headers,
+                    body: JSON.stringify({ name })
+                });
+                if (!resp.ok) {
+                    const txt = await resp.text();
+                    console.error('Błąd zapisu dostawcy:', txt);
+                    return { success: false, message: 'Błąd zapisu dostawcy' };
+                }
+                await fetchSuppliers();
+                return { success: true, message: 'Dostawca dodany.' };
+            } catch (err) {
+                console.error('Błąd sieci przy dodawaniu dostawcy:', err);
+                return { success: false, message: 'Błąd sieci' };
+            }
+        },
+        handleDeleteSupplier: async (value: string) => {
+            try {
+                const id = value;
+                const token = localStorage.getItem('jwt_token');
+                const headers: any = { 'Content-Type': 'application/json' };
+                if (token) headers['Authorization'] = `Bearer ${token}`;
+                const resp = await fetch(`${API_BASE_URL}/suppliers/${encodeURIComponent(id)}`, { method: 'DELETE', headers });
+                if (!resp.ok) {
+                    console.error('Błąd usuwania dostawcy:', await resp.text());
+                    return { success: false, message: 'Błąd usuwania dostawcy' };
+                }
+                setSuppliers(prev => prev.filter(s => s.value !== value));
+                setDeliveries(prev => prev.map(d => (d && String((d as any).supplier) === String(value)) ? { ...d, supplier: '' } : d ));
+                return { success: true, message: 'Dostawca usunięty.' };
+            } catch (err) {
+                console.error('Błąd sieci przy usuwaniu dostawcy:', err);
+                return { success: false, message: 'Błąd sieci' };
+            }
+        },
+        handleUpdateSupplier: async (value: string, data: Supplier) => {
+            try {
+                const id = value;
+                const token = localStorage.getItem('jwt_token');
+                const headers: any = { 'Content-Type': 'application/json' };
+                if (token) headers['Authorization'] = `Bearer ${token}`;
+                const body = {
+                    name: data.label,
+                    nip: data.nip,
+                    address: data.address,
+                    city: data.city,
+                    postal_code: data.zip,
+                    phone: data.phone,
+                    email: data.email,
+                    notes: data.notes
+                };
+                const resp = await fetch(`${API_BASE_URL}/suppliers/${encodeURIComponent(id)}`, { method: 'PUT', headers, body: JSON.stringify(body) });
+                if (!resp.ok) {
+                    console.error('Błąd aktualizacji dostawcy:', await resp.text());
+                    return { success: false, message: 'Błąd aktualizacji dostawcy' };
+                }
+                await fetchSuppliers();
+                setDeliveries(prev => prev.map(d => (d && String((d as any).supplier) === String(id)) ? { ...d, supplier: data.label } : d ));
+                return { success: true, message: 'Zaktualizowano dostawcę.' };
+            } catch (err) {
+                console.error('Błąd sieci przy aktualizacji dostawcy:', err);
+                return { success: false, message: 'Błąd sieci' };
+            }
         },
         handleLookupNip: async (nip: string) => ({ success: true, message: 'OK (Mock)', data: { label: 'Firma Testowa Sp. z o.o.', nip, city: 'Gdańsk', address: 'ul. Morska 1', zip: '80-001' } }),
         handleAddCustomer: (name: string) => {
