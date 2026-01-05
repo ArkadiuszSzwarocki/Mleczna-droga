@@ -1164,44 +1164,60 @@ app.post('/api/deliveries/:id/finalize', async (req, res) => {
         
         // Generuj palety i przenieś do magazynu (raw_materials)
         const createdPallets = [];
-        for (const item of items) {
-            const palletId = `P${Date.now()}${Math.random().toString(36).substr(2, 10)}`.toUpperCase();
-            
-            // Aktualizuj delivery_item z ID palety
-            await pool.execute(`
-                UPDATE delivery_items 
-                SET pallet_id = ?, label_printed = TRUE, label_printed_at = NOW(), label_printed_by = ?
-                WHERE id = ?
-            `, [palletId, completedBy, item.id]);
-            
-            // Utwórz paletę w magazynie (raw_materials)
-            const rmId = generate18DigitId();
-            await pool.execute(`
-                INSERT INTO raw_materials 
-                (id, nrPalety, nazwa, dataProdukcji, dataPrzydatnosci, initialWeight, currentWeight, 
-                 isBlocked, blockReason, currentLocation, batchNumber, packageForm, unit, labAnalysisNotes,
-                 deliveryRef, deliveryDate, createdAt)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
-            `, [
-                rmId,
-                palletId,
-                item.product_name,
-                item.production_date,
-                item.expiry_date,
-                item.net_weight || 0,
-                item.net_weight || 0,
-                item.is_blocked || false,
-                item.block_reason || null,
-                delivery.target_warehouse || 'BF_MS01',
-                item.batch_number || '',
-                item.packaging_type || 'bags',
-                item.unit || 'kg',
-                item.lab_notes || null,
-                delivery.order_ref,
-                delivery.delivery_date
-            ]);
-            
-            createdPallets.push({ palletId, rawMaterialId: rmId });
+        const conn = await pool.getConnection();
+        try {
+            await conn.beginTransaction();
+            for (const item of items) {
+                const oldItemId = item.id;
+                const newId = generate18DigitId();
+
+                // Zaktualizuj delivery_items (zmiana PK) oraz ustaw nr palety na nowy 18-cyfrowy id
+                await conn.execute(`
+                    UPDATE delivery_items
+                    SET id = ?, pallet_id = ?, label_printed = TRUE, label_printed_at = NOW(), label_printed_by = ?
+                    WHERE id = ?
+                `, [newId, newId, completedBy, oldItemId]);
+
+                // Zaktualizuj powiązane tabele, które referencjonują delivery_items.id
+                await conn.execute(`UPDATE delivery_lab_results SET delivery_item_id = ? WHERE delivery_item_id = ?`, [newId, oldItemId]);
+                await conn.execute(`UPDATE delivery_documents SET delivery_item_id = ? WHERE delivery_item_id = ?`, [newId, oldItemId]);
+
+                // Utwórz paletę w magazynie (raw_materials) z tym samym id
+                const rmId = newId;
+                await conn.execute(`
+                    INSERT INTO raw_materials 
+                    (id, nrPalety, nazwa, dataProdukcji, dataPrzydatnosci, initialWeight, currentWeight, 
+                     isBlocked, blockReason, currentLocation, batchNumber, packageForm, unit, labAnalysisNotes,
+                     deliveryRef, deliveryDate, createdAt)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+                `, [
+                    rmId,
+                    rmId,
+                    item.product_name,
+                    item.production_date,
+                    item.expiry_date,
+                    item.net_weight || 0,
+                    item.net_weight || 0,
+                    item.is_blocked || false,
+                    item.block_reason || null,
+                    delivery.target_warehouse || 'BF_MS01',
+                    item.batch_number || '',
+                    item.packaging_type || 'bags',
+                    item.unit || 'kg',
+                    item.lab_notes || null,
+                    delivery.order_ref,
+                    delivery.delivery_date
+                ]);
+
+                createdPallets.push({ palletId: rmId, rawMaterialId: rmId, oldItemId });
+            }
+
+            await conn.commit();
+        } catch (txErr) {
+            await conn.rollback();
+            throw txErr;
+        } finally {
+            conn.release();
         }
         
         // Zmień status dostawy na COMPLETED
