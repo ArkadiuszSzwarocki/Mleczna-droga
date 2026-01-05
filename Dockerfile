@@ -8,7 +8,7 @@ WORKDIR /app
 COPY package*.json ./
 
 # Instalujemy WSZYSTKIE zależności (również te deweloperskie, bo są potrzebne do Vite i concurrently)
-RUN npm install
+RUN npm install --legacy-peer-deps
 
 # Kopiujemy resztę kodu aplikacji
 COPY . .
