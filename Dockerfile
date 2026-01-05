@@ -1,0 +1,23 @@
+# Używamy lekkiej wersji Node.js 18
+FROM node:18-alpine
+
+# Ustawiamy folder roboczy w kontenerze
+WORKDIR /app
+
+# Kopiujemy pliki konfiguracyjne (zależności)
+COPY package*.json ./
+
+# Instalujemy WSZYSTKIE zależności (również te deweloperskie, bo są potrzebne do Vite i concurrently)
+RUN npm install
+
+# Kopiujemy resztę kodu aplikacji
+COPY . .
+
+# Otwieramy porty.
+# 5173 - domyślny port Vite (Frontend)
+# 3000 - częsty port dla server.js (Backend) - jeśli masz inny, zmienimy to
+EXPOSE 5173
+EXPOSE 3000
+
+# Komenda startowa - uruchamia to samo co u Ciebie lokalnie (front i back razem)
+CMD ["npm", "run", "dev"]
