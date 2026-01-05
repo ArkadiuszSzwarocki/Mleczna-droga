@@ -4,8 +4,8 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "frontend": "vite --host",
-    "backend": "node server.js",
+    "frontend": "vite --host --port 5173 --strictPort",
+    "backend": "PORT=3000 node server.js",
     "dev": "concurrently -n \"BACKEND,FRONTEND\" -c \"yellow,blue\" \"npm run backend\" \"npm run frontend\"",
     "build": "tsc && vite build",
     "preview": "vite preview",
