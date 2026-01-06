@@ -189,7 +189,7 @@ export const CHANGELOG_DATA: any[] = [
 ];
 export const DEFAULT_ANALYSIS_RANGES: AnalysisRange[] = [
   { id: '1', name: 'Tłuszcz', min: 55, max: 70, unit: '%' },
-  { id: '2', name: 'Białko', min: 20, max: 40, unit: '%' },
+  { id: '2', name: 'Białko', min: 30, max: 40, unit: '%' },
   { id: '3', name: 'pH', min: 3, max: 5, unit: '' },
   { id: '4', name: 'Wilgotność', min: 5, max: 15, unit: '%' },
   { id: '5', name: 'Popiół surowy', min: 0, max: 10, unit: '%' },
