@@ -188,7 +188,7 @@ export const CHANGELOG_DATA: any[] = [
     { version: "1.0.0", date: "2024-07-26", changes: [{type: 'new', description: 'Initial release'}] }
 ];
 export const DEFAULT_ANALYSIS_RANGES: AnalysisRange[] = [
-  { id: '1', name: 'Tłuszcz', min: 50, max: 70, unit: '%' },
+  { id: '1', name: 'Tłuszcz', min: 55, max: 70, unit: '%' },
   { id: '2', name: 'Białko', min: 20, max: 40, unit: '%' },
   { id: '3', name: 'pH', min: 3, max: 5, unit: '' },
   { id: '4', name: 'Wilgotność', min: 5, max: 15, unit: '%' },
