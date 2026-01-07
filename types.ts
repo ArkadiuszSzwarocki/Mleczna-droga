@@ -1,5 +1,4 @@
 
-
 import React, { ReactNode } from 'react';
 
 export interface PrinterDef {
@@ -347,8 +346,9 @@ export interface DeliveryItem {
     id: string;
     position: number;
     productId: string;
+    // FIX: Added productCode property to Delivery
     // FIX: Added productCode property to DeliveryItem interface as used in components.
-    productCode?: string;
+    productCode: string;
     productName: string;
     batchNumber?: string;
     productionDate: string;
@@ -799,7 +799,6 @@ export interface ExpiringPalletInfo {
     daysLeft: number;
     // FIX: Narrowed status type to exclude 'default', resolving type predicate assignability error in WarehouseContext.
     status: 'expired' | 'critical' | 'warning';
-    isRaw: boolean;
 }
 
 export interface AnalysisRangeHistoryEntry {
