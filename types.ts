@@ -345,7 +345,6 @@ export interface DeliveryItem {
     id: string;
     position: number;
     productId: string;
-    // FIX: Added productCode property to Delivery
     // FIX: Added productCode property to DeliveryItem interface as used in components.
     productCode: string;
     productName: string;
@@ -808,10 +807,4 @@ export interface AnalysisRangeHistoryEntry {
     rangeId: string;
     rangeName: string;
     changeDetails: string;
-}
-
-export interface InventoryStartPayload {
-    name: string;
-    locations: string[];
-    userId: string;
 }
