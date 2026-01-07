@@ -1,4 +1,3 @@
-
 import React, { ReactNode } from 'react';
 
 export interface PrinterDef {
@@ -809,4 +808,10 @@ export interface AnalysisRangeHistoryEntry {
     rangeId: string;
     rangeName: string;
     changeDetails: string;
+}
+
+export interface InventoryStartPayload {
+    name: string;
+    locations: string[];
+    userId: string;
 }

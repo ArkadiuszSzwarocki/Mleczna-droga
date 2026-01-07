@@ -16,7 +16,7 @@ interface StartInventoryModalProps {
 }
 
 const StartInventoryModal: React.FC<StartInventoryModalProps> = ({ isOpen, onClose }) => {
-    const { handleStartInventorySession } = useWarehouseContext();
+    const { handleStartInventorySession, currentUser } = useWarehouseContext() as { handleStartInventorySession: Function; currentUser: { id: string; role: string; }; };
     const [name, setName] = useState('');
     const [selectedLocations, setSelectedLocations] = useState<Set<string>>(new Set());
     const [error, setError] = useState<string | null>(null);
@@ -38,7 +38,7 @@ const StartInventoryModal: React.FC<StartInventoryModalProps> = ({ isOpen, onClo
         });
     };
 
-    const handleSubmit = () => {
+    const handleSubmit = async () => {
         setError(null);
         if (!name.trim()) {
             setError("Nazwa/opis inwentaryzacji jest wymagany.");
@@ -49,11 +49,53 @@ const StartInventoryModal: React.FC<StartInventoryModalProps> = ({ isOpen, onClo
             return;
         }
 
-        const result = handleStartInventorySession(name, Array.from(selectedLocations));
-        if (result.success) {
+        try {
+            const response = await fetch('/api/inventory/start', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    name,
+                    locations: Array.from(selectedLocations),
+                    userId: currentUser?.id,
+                }),
+            });
+
+            if (!response.ok) {
+                throw new Error('Nie udało się rozpocząć inwentaryzacji');
+            }
+
+            const data = await response.json();
+            console.log('Inwentaryzacja rozpoczęta:', data);
             onClose();
-        } else {
-            setError(result.message);
+        } catch (error) {
+            console.error('Błąd:', error);
+            setError(error.message);
+        }
+    };
+
+    const mapMaterialsToLocations = async () => {
+        try {
+            const response = await fetch('/api/inventory/materials', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    locations: Array.from(selectedLocations),
+                }),
+            });
+
+            if (!response.ok) {
+                throw new Error('Nie udało się powiązać materiałów z lokalizacjami');
+            }
+
+            const data = await response.json();
+            console.log('Materiały powiązane z lokalizacjami:', data);
+        } catch (error) {
+            console.error('Błąd:', error);
+            setError(error.message);
         }
     };
     

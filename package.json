@@ -16,8 +16,6 @@
     "db:init": "node seed-db.js"
   },
   "dependencies": {
-    "multer": "^1.4.5-lts.1",
-    "pdf-parse": "^1.1.1",
     "@tanstack/react-virtual": "^3.0.0",
     "bcrypt": "^6.0.0",
     "cors": "^2.8.5",
@@ -25,8 +23,10 @@
     "express": "^4.19.2",
     "jsonwebtoken": "^9.0.3",
     "lucide-react": "^0.344.0",
+    "multer": "^1.4.5-lts.1",
     "mysql2": "^3.9.7",
-    "react": "^19.0.0",
+    "pdf-parse": "^1.1.1",
+    "react": "^19.2.3",
     "react-dom": "^19.0.0",
     "recharts": "^2.12.2"
   },
