@@ -1,7 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
 import { useAuth } from './contexts/AuthContext';
-import { useUIContext } from './contexts/UIContext';
 import Input from './Input';
 import Button from './Button';
 import Alert from './Alert';
@@ -10,7 +9,7 @@ import UserIcon from './icons/UserIcon';
 import EyeIcon from './icons/EyeIcon';
 import EyeSlashIcon from './icons/EyeSlashIcon';
 import QrCodeIcon from './icons/QrCodeIcon';
-import { User, View } from '../types';
+import { User } from '../types';
 import MLogoIcon from './icons/MLogoIcon';
 import AnimatedBackground from './AnimatedBackground';
 
@@ -24,7 +23,6 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
     const [errors, setErrors] = useState<{ username?: string, password?: string, form?: string }>({});
     const [showPassword, setShowPassword] = useState(false);
     const { handleLogin, currentUser } = useAuth();
-    const { handleSetView } = useUIContext();
     const [loginInProgress, setLoginInProgress] = useState(false);
 
     // Kiedy currentUser zmieni się (po successfullym logowaniu), wyślij to do AppContent
@@ -72,22 +70,13 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
         alert("Logowanie kodem QR jest w trakcie implementacji.");
     };
 
-    const handleLogoClick = () => {
-        // Ukryty bypass dla testów admina
-        handleSetView(View.PalletMovementTester);
-    };
-
     return (
         <>
             <AnimatedBackground />
             <div className="min-h-screen bg-secondary-900/80 backdrop-blur-sm flex flex-col justify-center items-center p-4 animate-fadeIn">
                 <div className="w-full max-w-md bg-secondary-800 rounded-2xl shadow-xl p-8 space-y-6">
                     
-                    <div 
-                        className="mx-auto h-16 w-16 cursor-pointer transform transition-transform active:scale-95"
-                        onClick={handleLogoClick}
-                        title="Mleczna Droga MES"
-                    >
+                    <div className="mx-auto h-16 w-16">
                         <MLogoIcon />
                     </div>
                     
