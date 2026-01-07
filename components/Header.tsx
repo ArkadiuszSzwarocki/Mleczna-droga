@@ -12,6 +12,7 @@ import ArrowLeftIcon from './icons/ArrowLeftIcon';
 import ArrowRightIcon from './icons/ArrowRightIcon';
 import HomeIcon from './icons/HomeIcon';
 import ChevronDownIcon from './icons/ChevronDownIcon';
+import MLogoIcon from './icons/MLogoIcon';
 
 
 interface HeaderProps {
@@ -57,12 +58,28 @@ const Header: React.FC<HeaderProps> = ({ toggleSidebar }) => {
         </button>
     );
 
+    const handleSecretAdminClick = () => {
+        if (currentUser?.role === 'admin' || currentUser?.role === 'boss') {
+            handleSetView(View.PalletMovementTester);
+        }
+    };
+
     return (
         <header className="flex-shrink-0 bg-white dark:bg-secondary-800 shadow-md z-40 no-print">
             <div className="flex items-center justify-between h-16 px-4">
                 <div className="flex items-center gap-2">
                     {sidebarPosition === 'left' && <HamburgerButton />}
-                     <div className="hidden md:flex items-center gap-1">
+                    
+                    {/* Secret Admin Button wrapped in Logo */}
+                    <div 
+                        onClick={handleSecretAdminClick}
+                        className="h-8 w-8 ml-2 cursor-pointer transition-transform active:scale-90"
+                        title="Mleczna Droga MES"
+                    >
+                        <MLogoIcon className="h-full w-full" />
+                    </div>
+
+                     <div className="hidden md:flex items-center gap-1 ml-2">
                         <button 
                             onClick={handleNavBack} 
                             disabled={!canGoBack} 
@@ -90,9 +107,9 @@ const Header: React.FC<HeaderProps> = ({ toggleSidebar }) => {
                             <HomeIcon className="h-5 w-5" />
                         </button>
                     </div>
-                    <div className="ml-2">
-                        <h1 className="text-lg font-semibold text-gray-800 dark:text-gray-200">{pageTitle}</h1>
-                        {pageSubtitle && <div className="text-xs text-gray-500 dark:text-gray-400">{pageSubtitle}</div>}
+                    <div className="ml-4">
+                        <h1 className="text-lg font-semibold text-gray-800 dark:text-gray-200 leading-tight">{pageTitle}</h1>
+                        {pageSubtitle && <div className="text-[10px] text-gray-500 dark:text-gray-400 font-bold uppercase tracking-wider">{pageSubtitle}</div>}
                     </div>
                 </div>
 
@@ -115,9 +132,9 @@ const Header: React.FC<HeaderProps> = ({ toggleSidebar }) => {
                             aria-label="Otwórz menu użytkownika"
                             title="Użytkownik"
                         >
-                            <div className="flex flex-col items-end mr-1">
+                            <div className="flex flex-col items-end mr-1 text-right">
                                 <span className="hidden sm:inline text-sm font-bold text-gray-800 dark:text-gray-200 leading-none">{currentUser?.username}</span>
-                                <span className="text-[10px] font-extrabold text-primary-600 dark:text-primary-400 uppercase tracking-tighter">{getRoleLabel(currentUser?.role || '')}</span>
+                                <span className="text-[9px] font-black text-primary-600 dark:text-primary-400 uppercase tracking-tighter">{getRoleLabel(currentUser?.role || '')}</span>
                             </div>
                             <UserCircleIcon className="h-8 w-8 text-gray-500 dark:text-gray-400" />
                             <ChevronDownIcon className={`h-4 w-4 text-gray-500 dark:text-gray-400 hidden sm:inline transition-transform ${isUserMenuOpen ? 'rotate-180' : ''}`}/>

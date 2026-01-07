@@ -1,5 +1,4 @@
 
-
 import React, { ReactNode } from 'react';
 
 export interface PrinterDef {
@@ -312,6 +311,13 @@ export interface FinishedGoodItem {
   producedAt: string;
 }
 
+// FIX: Added missing MoveFinishedGoodModalProps interface used in components.
+export interface MoveFinishedGoodModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  itemToMove: FinishedGoodItem | null;
+}
+
 export interface AnalysisRange {
   id: string;
   name: string;
@@ -499,6 +505,15 @@ export interface ProductionRun {
         durationMinutes: number;
         description: string;
     }[];
+}
+
+// FIX: Added missing ProductionRunTemplate interface used in production planning.
+export interface ProductionRunTemplate {
+    id: string;
+    name: string;
+    recipeId: string;
+    recipeName: string;
+    targetBatchSizeKg: number;
 }
 
 export interface AdjustmentOrder {
@@ -694,7 +709,8 @@ export interface LogisticsContextValue {
     handleAssignPalletsToDispatchItem: (orderId: string, itemId: string, palletIds: string[]) => { success: boolean; message: string };
     handleFulfillDispatchItem: (orderId: string, palletId: string) => { action: 'FULFILLED' | 'SPLIT_SUGGESTED'; success: boolean; message: string; splitDetails?: any };
     handleFulfillTransferItem: (orderId: string, palletId: string) => { success: boolean; message: string };
-    handleFulfillDispatchOrder: (orderId: string) => { success: boolean; message: string };
+    // FIX: Renamed from handleFulfillDispatchOrder to handleCompleteDispatchOrder to match implementation and component usage.
+    handleCompleteDispatchOrder: (orderId: string) => { success: boolean; message: string };
 }
 
 export interface QueuedAction {
@@ -799,20 +815,6 @@ export interface ExpiringPalletInfo {
     // FIX: Narrowed status type to exclude 'default', resolving type predicate assignability error in WarehouseContext.
     status: 'expired' | 'critical' | 'warning';
     isRaw: boolean;
-}
-
-export interface ProductionRunTemplate {
-    id: string;
-    name: string;
-    recipeId: string;
-    recipeName: string;
-    targetBatchSizeKg: number;
-}
-
-export interface MoveFinishedGoodModalProps {
-    isOpen: boolean;
-    onClose: () => void;
-    itemToMove: FinishedGoodItem;
 }
 
 export interface AnalysisRangeHistoryEntry {

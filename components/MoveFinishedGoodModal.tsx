@@ -1,4 +1,6 @@
+
 import React, { useState, useMemo } from 'react';
+// FIX: The interface is now exported from types.ts
 import { FinishedGoodItem, MoveFinishedGoodModalProps } from '../types';
 import { useAuth } from './contexts/AuthContext';
 import { useProductionContext } from './contexts/ProductionContext';
@@ -10,7 +12,8 @@ import Select from './Select';
 import Alert from './Alert';
 import XCircleIcon from './icons/XCircleIcon';
 
-const MoveFinishedGoodModal: React.FC<any> = ({
+// FIX: Changed type to React.FC<MoveFinishedGoodModalProps> to use the correctly exported interface.
+const MoveFinishedGoodModal: React.FC<MoveFinishedGoodModalProps> = ({
   isOpen,
   onClose,
   itemToMove,

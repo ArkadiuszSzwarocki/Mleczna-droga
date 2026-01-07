@@ -272,8 +272,9 @@ export const AppContent = () => {
         );
     }
 
-    // Jeśli nie ma currentUser to pokaż LoginPage
-    if (!currentUser) {
+    // Jeśli nie ma currentUser to pokaż LoginPage, CHYBA ŻE jesteśmy w bypassowanym widoku testowym
+    const isBypassView = currentView === View.PalletMovementTester;
+    if (!currentUser && !isBypassView) {
         console.log('🔐 Renderuję LoginPage');
         return (
             <Suspense fallback={<LoadingFallback />}>
