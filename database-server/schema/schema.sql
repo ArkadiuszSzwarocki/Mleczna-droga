@@ -93,3 +93,16 @@ CREATE TABLE IF NOT EXISTS products (
     INDEX idx_sku (sku),
     INDEX idx_category (category)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- =====================================================
+-- Tabela sesji inwentaryzacyjnych
+-- =====================================================
+CREATE TABLE IF NOT EXISTS inventory_sessions (
+    id VARCHAR(50) PRIMARY KEY COMMENT 'Unikalny identyfikator sesji inwentaryzacyjnej',
+    name VARCHAR(100) NOT NULL COMMENT 'Nazwa sesji',
+    userId VARCHAR(50) NOT NULL COMMENT 'Identyfikator użytkownika',
+    createdAt DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Data utworzenia sesji',
+    status VARCHAR(50) COMMENT 'Status sesji (ongoing, completed, cancelled)',
+    results JSON COMMENT 'Wyniki inwentaryzacji w formacie JSON',
+    FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE utf8mb4_unicode_ci;

@@ -1,4 +1,3 @@
-
 import express from 'express';
 import mysql from 'mysql2/promise';
 import cors from 'cors';
@@ -241,6 +240,30 @@ app.delete('/api/inventory/sessions/:id', verifyToken, async (req, res) => {
         res.json({ success: true });
     } catch (err) {
         res.status(500).json({ error: err.message });
+    }
+});
+
+app.post('/api/inventory/start', verifyToken, async (req, res) => {
+    const { name, locations, userId } = req.body;
+    const sessionId = `INV-${Date.now()}`;
+    const conn = await pool.getConnection();
+    try {
+        await conn.beginTransaction();
+        await conn.execute('INSERT INTO inventory_sessions (id, name, userId, status) VALUES (?, ?, ?, ?)', [sessionId, name, userId, 'ongoing']);
+
+        const [materials] = await conn.query('SELECT id, name, quantity, locationId FROM raw_materials WHERE locationId IN (?)', [locations]);
+        if (materials.length > 0) {
+            const values = materials.map(m => [sessionId, m.id, m.name, m.quantity, m.locationId]);
+            await conn.query('INSERT INTO inventory_snapshots (session_id, pallet_id, product_name, expected_quantity, location_id) VALUES ?', [values]);
+        }
+
+        await conn.commit();
+        res.json({ success: true, sessionId });
+    } catch (err) {
+        await conn.rollback();
+        res.status(500).json({ error: err.message });
+    } finally {
+        conn.release();
     }
 });
 
