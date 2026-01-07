@@ -1,6 +1,8 @@
+
 import React, { createContext, useContext, PropsWithChildren, useState, useCallback, useMemo, useEffect } from 'react';
 import { User, UserRole, Permission } from '../../types';
 import { INITIAL_USERS } from '../../src/initialData';
+// FIX: Added missing PREDEFINED_ROLES to the import from constants.
 import { DEFAULT_SETTINGS, PREDEFINED_ROLES, API_BASE_URL } from '../../constants';
 
 export interface AuthContextValue {
@@ -24,7 +26,8 @@ export interface AuthContextValue {
     handleAddNewRole: (roleName: string) => { success: boolean, message: string };
     handleDeleteRole: (roleName: string) => { success: boolean, message: string };
     handleUpdateRolePermissions: (roleName: string, permissions: Permission[]) => { success: boolean, message: string };
-    handleUpdateUserPermissions: (userId: string, permissions: Permission[]) => { success: boolean, message: string };
+    // FIX: Updated handleUpdateUserPermissions interface to be asynchronous (returning Promise).
+    handleUpdateUserPermissions: (userId: string, permissions: Permission[]) => Promise<{ success: boolean, message: string }>;
     getRoleLabel: (roleName: string) => string;
     allSubRoles: string[];
     handleAddSubRole: (name: string) => { success: boolean, message: string };
@@ -67,6 +70,22 @@ export const AuthProvider: React.FC<PropsWithChildren> = ({ children }) => {
         } catch (e) {
             console.error('Błąd dekodowania base64:', e);
             return atob(str); // Fallback na zwykły atob
+        }
+    };
+
+    // FIX: Moved refreshRolesFromAPI function out of the useEffect and into the AuthProvider scope to resolve 'Cannot find name' errors.
+    const refreshRolesFromAPI = async () => {
+        try {
+            const response = await fetch(`${API_BASE_URL}/roles`);
+            if (response.ok) {
+                const apiRoles = await response.json();
+                setDbRoles(apiRoles);
+                console.log('✅ Role pobrane z bazy:', apiRoles);
+            } else {
+                console.log('ℹ️ Błąd pobierania ról z API:', response.status);
+            }
+        } catch (error) {
+            console.log('⚠️ Nie mogę pobrać ról z bazy:', error);
         }
     };
 
@@ -150,22 +169,6 @@ export const AuthProvider: React.FC<PropsWithChildren> = ({ children }) => {
         // Pobierz użytkowników przy starcie
         fetchUsersFromAPI();
         
-        // Funkcja do odświeżania listy ról z API
-        const refreshRolesFromAPI = async () => {
-            try {
-                const response = await fetch(`${API_BASE_URL}/roles`);
-                if (response.ok) {
-                    const apiRoles = await response.json();
-                    setDbRoles(apiRoles);
-                    console.log('✅ Role pobrane z bazy:', apiRoles);
-                } else {
-                    console.log('ℹ️ Błąd pobierania ról z API:', response.status);
-                }
-            } catch (error) {
-                console.log('⚠️ Nie mogę pobrać ról z bazy:', error);
-            }
-        };
-
         // Wywołaj odświeżanie ról
         refreshRolesFromAPI();
 

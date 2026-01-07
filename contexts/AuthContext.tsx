@@ -2,6 +2,7 @@
 import React, { createContext, useContext, PropsWithChildren, useState, useCallback, useMemo, useEffect } from 'react';
 import { User, UserRole, Permission } from '../../types';
 import { INITIAL_USERS } from '../../src/initialData';
+// FIX: Added missing PREDEFINED_ROLES to the import from constants.
 import { DEFAULT_SETTINGS, PREDEFINED_ROLES, API_BASE_URL } from '../../constants';
 
 export interface AuthContextValue {
@@ -24,7 +25,8 @@ export interface AuthContextValue {
     handleAddNewRole: (roleName: string) => { success: boolean, message: string };
     handleDeleteRole: (roleName: string) => { success: boolean, message: string };
     handleUpdateRolePermissions: (roleName: string, permissions: Permission[]) => { success: boolean, message: string };
-    handleUpdateUserPermissions: (userId: string, permissions: Permission[]) => { success: boolean, message: string };
+    // FIX: Updated handleUpdateUserPermissions interface to be asynchronous (returning Promise).
+    handleUpdateUserPermissions: (userId: string, permissions: Permission[]) => Promise<{ success: boolean, message: string }>;
     getRoleLabel: (roleName: string) => string;
     allSubRoles: string[];
     handleAddSubRole: (name: string) => { success: boolean, message: string };

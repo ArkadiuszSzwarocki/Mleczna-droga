@@ -1,4 +1,5 @@
 
+
 import React, { useState, useMemo, useEffect } from 'react';
 import { useAuth } from './contexts/AuthContext';
 import { Permission, User } from '../types';
@@ -68,6 +69,10 @@ const getPermissionLabel = (permission: Permission): string => {
         [Permission.EXTEND_EXPIRY_DATE]: 'Przedłużanie terminów ważności',
         [Permission.PLAN_INTERNAL_TRANSFERS]: 'Planowanie transferów OSiP',
         [Permission.MANAGE_INTERNAL_TRANSFERS]: 'Realizacja transferów OSiP',
+        // FIX: Added missing permission labels to satisfy Record<Permission, string> type constraint.
+        [Permission.MANAGE_RECIPES]: 'Zarządzanie recepturami',
+        [Permission.VIEW_TRACEABILITY]: 'Śledzenie partii (Traceability)',
+        [Permission.MANAGE_SUPPLIERS_CUSTOMERS]: 'Zarządzanie dostawcami/klientami'
     };
     return labels[permission] || permission;
 };

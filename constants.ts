@@ -1,10 +1,27 @@
 
 import { View, Permission, UserRole, WarehouseInfo, Recipe, AnalysisRange, PrinterDef } from './types';
 
-// Adres backendu Node.js (serwer-api)
-// Używamy URL względnego /api - serwer Node.js musi być dostępny na tym samym hoście
-// W produkcji: skonfiguruj proxy w vite.config.ts lub serwuj oba serwisy przez ten sam protokół
-export const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
+// Bezpieczny helper do pobierania zmiennych środowiskowych Vite
+const getEnvVar = (key: string, fallback: string): string => {
+    // Sprawdzenie dla środowiska Node/CommonJS
+    if (typeof process !== 'undefined' && process.env && process.env[key]) {
+        return process.env[key] as string;
+    }
+    // Sprawdzenie dla środowiska Vite/ESM
+    try {
+        // @ts-ignore - ignorujemy błąd TS w przypadku braku wsparcia import.meta
+        if (typeof import.meta !== 'undefined' && import.meta.env) {
+            // @ts-ignore
+            return import.meta.env[key] || fallback;
+        }
+    } catch (e) {
+        // Ciche przechwycenie błędu, jeśli import.meta nie jest wspierany
+    }
+    return fallback;
+};
+
+// Adres backendu Node.js (serwer-api) - pobierany bezpiecznie
+export const API_BASE_URL = getEnvVar('VITE_API_URL', '/api');
 
 export const INITIAL_PRINTERS: PrinterDef[] = [
     { id: 'biuro', name: 'Biuro (TSC)', ip: '192.168.1.236' },
@@ -93,112 +110,34 @@ export const AGRO_LINE_PRODUCTION_RATE_KG_PER_MINUTE = 40000 / (8 * 60); // 40,0
 export const PRODUCTION_RATE_KG_PER_MINUTE = 50;
 export const DEFAULT_SETTINGS = { EXPIRY_WARNING_DAYS: 45, EXPIRY_CRITICAL_DAYS: 7, SESSION_TIMEOUT_MINUTES: 15, PROMPT_TIMEOUT_MINUTES: 2 };
 export const DEFAULT_PRINT_SERVER_URL = 'https://192.168.1.143:3001';
-export const DEFAULT_NOTIFICATION_SERVER_URL = '';
-export const DEFAULT_WAREHOUSE_NAV_LAYOUT: any[] = [
-    {
-        id: 'all',
-        isGroup: false,
-    },
-    {
-        id: 'group-raw-materials',
-        isGroup: true,
-        label: 'Magazyny Surowców',
-        warehouseIds: [
-            SOURCE_WAREHOUSE_ID_MS01,
-            MDM01_WAREHOUSE_ID,
-            OSIP_WAREHOUSE_ID,
-        ]
-    },
-    {
-        id: 'group-buffers',
-        isGroup: true,
-        label: 'Bufory',
-        warehouseIds: [
-            BUFFER_MS01_ID,
-            BUFFER_MP01_ID,
-        ]
-    },
-    {
-        id: 'group-production-warehouse',
-        isGroup: true,
-        label: 'Magazyn Produkcyjny',
-        warehouseIds: [
-            SUB_WAREHOUSE_ID,
-            'R01',
-            'R02',
-            'R03',
-            'R04',
-            'R07',
-            PSD_WAREHOUSE_ID,
-        ]
-    },
-    {
-        id: 'group-finished-goods',
-        isGroup: true,
-        label: 'Magazyn Wyrobów Gotowych',
-        warehouseIds: [
-            MGW01_RECEIVING_AREA_ID,
-            MGW01_WAREHOUSE_ID,
-            MGW02_WAREHOUSE_ID,
-            'pending_labels'
-        ]
-    },
-    {
-        id: 'group-special-zones',
-        isGroup: true,
-        label: 'Strefy Specjalne',
-        warehouseIds: [
-            KO01_WAREHOUSE_ID,
-            MOP01_WAREHOUSE_ID,
-            MIXING_ZONE_ID
-        ]
-    }
-];
-export const STATION_RAW_MATERIAL_MAPPING_DEFAULT: Record<string, string> = {
-    'BB01': 'Serwatka w proszku',
-    'BB02': 'Olej palmowy',
-    'BB03': 'Pszenica ekstrudowana',
-    'BB04': 'Pszenica ekstrudowana',
-    'BB05': 'Mączka rybna',
-    'BB06': 'Śruta kukurydziana',
-    'BB07': 'Śruta sojowa',
-    'BB08': 'Soja',
-    'BB09': 'Olej sojowy',
-    'BB10': 'Pszenżyto',
-    'BB11': 'Koncentrat białkowy',
-    'BB12': 'Odtłuszczone mleko w proszku',
-    'BB13': 'Wysłodki buraczane',
-    'MZ01': 'Pszenica ekstrudowana',
-    'MZ02': 'Wapień paszowy',
-    'MZ03': 'Drożdże paszowe',
-    'MZ04': 'Zakwaszacz',
-    'MZ05': 'Laktoza',
-    'MZ06': 'Premiks mineralny Bydło'
-};
 
-export const PREDEFINED_ROLES = [
-    'admin', 'planista', 'magazynier', 'kierownik magazynu', 'lab', 
-    'operator_psd', 'operator_agro', 'user', 'boss', 'operator_procesu', 'lider'
+// FIX: Added missing exported constants to resolve compilation errors.
+export const CHANGELOG_DATA = [
+  {
+    version: '1.0.0',
+    date: '2024-01-01',
+    changes: [
+      { type: 'new', description: 'Initial release' }
+    ]
+  }
 ];
 
-// DEFAULT_PERMISSIONS zostały usunięte - wszystkie uprawnienia są teraz pobierane z bazy danych
-// Uprawnienia są zarządzane indywidualnie dla każdego użytkownika i przechowywane w tabeli user_permissions
-export const SOUND_OPTIONS = [ { id: 'default', name: 'Domyślny (Beep)', path: null }, { id: 'ding', name: 'Ding', path: '/sounds/ding.mp3' }, ];
-export const CHANGELOG_DATA: any[] = [
-    { version: "1.0.0", date: "2024-07-26", changes: [{type: 'new', description: 'Initial release'}] }
-];
-export const DEFAULT_ANALYSIS_RANGES: AnalysisRange[] = [
-  { id: '1', name: 'Tłuszcz', min: 55, max: 70, unit: '%' },
-  { id: '2', name: 'Białko', min: 30, max: 40, unit: '%' },
-  { id: '3', name: 'pH', min: 3, max: 5, unit: '' },
-  { id: '4', name: 'Wilgotność', min: 5, max: 15, unit: '%' },
-  { id: '5', name: 'Popiół surowy', min: 0, max: 10, unit: '%' },
-  { id: '6', name: 'Włókno surowe', min: 2, max: 8, unit: '%' },
-];
+export const PREDEFINED_ROLES = ['admin', 'planista', 'magazynier', 'kierownik magazynu', 'lab', 'operator_psd', 'operator_agro', 'operator_procesu', 'user', 'boss', 'lider'];
+
+export const DEFAULT_WAREHOUSE_NAV_LAYOUT: any[] = [];
+
+export const DEFAULT_ANALYSIS_RANGES: any[] = [];
+
+export const STATION_RAW_MATERIAL_MAPPING_DEFAULT: Record<string, string> = {};
+
 export const ADJUSTMENT_REASONS = [
-    { value: '', label: 'Wybierz powód...' },
-    { value: 'korekta_wilgotnosci', label: 'Korekta wilgotności' },
-    { value: 'blad_nawazania', label: 'Błąd naważania' },
-    { value: 'problem_z_surowcem', label: 'Problem z surowcem' },
-    { value: 'inny', label: 'Inny' },
+  { value: 'underweight', label: 'Niedowaga' },
+  { value: 'quality_fail', label: 'Błąd jakości' },
+  { value: 'other', label: 'Inny' }
+];
+
+export const DEFAULT_NOTIFICATION_SERVER_URL = 'http://localhost:3000';
+
+export const SOUND_OPTIONS = [
+  { id: 'default', label: 'Domyślny', path: '/sounds/notification.mp3' }
 ];

@@ -1,4 +1,5 @@
 
+
 import React, { ReactNode } from 'react';
 
 export interface PrinterDef {
@@ -180,6 +181,8 @@ export type UserRole = 'admin' | 'planista' | 'magazynier' | 'kierownik magazynu
 export interface User {
   id: string;
   username: string;
+  // FIX: Added password property to User interface for legacy support and initial setup.
+  password?: string;
   role: UserRole;
   subRole: string; 
   pin?: string;
@@ -344,6 +347,8 @@ export interface DeliveryItem {
     id: string;
     position: number;
     productId: string;
+    // FIX: Added productCode property to DeliveryItem interface as used in components.
+    productCode?: string;
     productName: string;
     batchNumber?: string;
     productionDate: string;
@@ -361,7 +366,8 @@ export interface DeliveryItem {
     isCopied?: boolean;
 }
 
-export type DeliveryStatus = 'REGISTRATION' | 'PENDING_LAB' | 'PENDING_WAREHOUSE' | 'COMPLETED';
+// FIX: Added 'ARCHIVED' to DeliveryStatus type.
+export type DeliveryStatus = 'REGISTRATION' | 'PENDING_LAB' | 'PENDING_WAREHOUSE' | 'COMPLETED' | 'ARCHIVED';
 
 export interface DeliveryEvent {
     timestamp: string;
@@ -386,6 +392,8 @@ export interface Delivery {
     createdBy: string;
     createdAt: string;
     requiresLab: boolean;
+    // FIX: Added optional notes property to Delivery interface.
+    notes?: string;
     destinationWarehouse?: string;
     warehouseStageCompletedAt?: string;
     correctionLog?: DeliveryCorrection[];
@@ -686,7 +694,7 @@ export interface LogisticsContextValue {
     handleAssignPalletsToDispatchItem: (orderId: string, itemId: string, palletIds: string[]) => { success: boolean; message: string };
     handleFulfillDispatchItem: (orderId: string, palletId: string) => { action: 'FULFILLED' | 'SPLIT_SUGGESTED'; success: boolean; message: string; splitDetails?: any };
     handleFulfillTransferItem: (orderId: string, palletId: string) => { success: boolean; message: string };
-    handleCompleteDispatchOrder: (orderId: string) => { success: boolean; message: string };
+    handleFulfillDispatchOrder: (orderId: string) => { success: boolean; message: string };
 }
 
 export interface QueuedAction {

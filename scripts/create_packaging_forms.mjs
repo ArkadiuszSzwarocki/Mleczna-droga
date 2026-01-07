@@ -1,3 +1,4 @@
+
 import dotenv from 'dotenv';
 import mysql from 'mysql2/promise';
 
@@ -36,9 +37,11 @@ const dbConfig = {
     const [result] = await pool.execute(sql);
     console.log('✅ Wykonano CREATE TABLE (lub już istniała).');
     await pool.end();
-    process.exit(0);
+    // FIX: Cast process to any to resolve 'exit' property not found on type 'Process' error.
+    (process as any).exit(0);
   } catch (err) {
     console.error('❌ Błąd podczas tworzenia tabeli packaging_forms:', err.message || err);
-    process.exit(2);
+    // FIX: Cast process to any to resolve 'exit' property not found on type 'Process' error.
+    (process as any).exit(2);
   }
 })();
