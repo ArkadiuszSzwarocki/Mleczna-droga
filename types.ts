@@ -1,4 +1,5 @@
 
+
 import React, { ReactNode } from 'react';
 
 export interface PrinterDef {
@@ -311,13 +312,6 @@ export interface FinishedGoodItem {
   producedAt: string;
 }
 
-// FIX: Added missing MoveFinishedGoodModalProps interface used in components.
-export interface MoveFinishedGoodModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  itemToMove: FinishedGoodItem | null;
-}
-
 export interface AnalysisRange {
   id: string;
   name: string;
@@ -505,15 +499,6 @@ export interface ProductionRun {
         durationMinutes: number;
         description: string;
     }[];
-}
-
-// FIX: Added missing ProductionRunTemplate interface used in production planning.
-export interface ProductionRunTemplate {
-    id: string;
-    name: string;
-    recipeId: string;
-    recipeName: string;
-    targetBatchSizeKg: number;
 }
 
 export interface AdjustmentOrder {
