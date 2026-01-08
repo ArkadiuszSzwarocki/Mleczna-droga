@@ -8,6 +8,7 @@
  */
 
 import fs from 'fs/promises';
+import os from 'os';
 import mysql from 'mysql2/promise';
 import dotenv from 'dotenv';
 
@@ -65,10 +66,13 @@ async function run() {
             plan.push({ oldId, oldPallet, targetId, isNumeric18 });
         }
 
+
         const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-        const backupPath = `migrations/backup_delivery_items_${timestamp}.json`;
-        await fs.mkdir('migrations', { recursive: true });
+        const backupDir = process.env.BACKUP_DIR || (os.tmpdir() + '/mleczna-migrations');
+        const backupPath = `${backupDir}/backup_delivery_items_${timestamp}.json`;
+        await fs.mkdir(backupDir, { recursive: true });
         await fs.writeFile(backupPath, JSON.stringify({ plan, previewCount: plan.length }, null, 2));
+        console.log('Backup written to', backupPath);
 
         console.log(`Dry-run summary: ${plan.length} delivery_items processed. Backup saved to ${backupPath}`);
 

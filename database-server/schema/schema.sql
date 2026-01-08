@@ -1,6 +1,9 @@
--- Schema dla bazy danych Mleczna Droga
+-- Schema dla bazy danych Mleczna Droga (MySQL)
 -- Host: filipinka.myqnapcloud.com:3307
 -- Baza: MleczDroga
+-- NOTE: This file uses MySQL-specific syntax (IF NOT EXISTS, COMMENT, JSON column type, ENGINE=InnoDB, etc.).
+-- If you need Microsoft SQL Server (T-SQL) compatible statements, see `schema_mssql.sql` in the same folder.
+-- Keep this file for MySQL deployments; use schema_mssql.sql for MS SQL deployments.
 
 -- =====================================================
 -- Tabela dostaw (Deliveries)
