@@ -10,6 +10,10 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 dotenv.config({ path: path.join(__dirname, '../.env') });
+import bcrypt from 'bcrypt';
+import jwt from 'jsonwebtoken';
+
+const JWT_SECRET = process.env.JWT_SECRET || 'devsecret';
 
 const app = express();
 app.use(cors());
@@ -258,6 +262,174 @@ app.delete('/api/users/:id', async (req, res) => {
     } catch (err) {
         console.error(err);
         res.status(500).json({ error: 'Błąd usuwania użytkownika' });
+    }
+});
+
+// ==========================
+// Roles & Sub-Roles endpoints
+// ==========================
+
+// GET roles
+app.get('/api/roles', async (req, res) => {
+    try {
+        const [rows] = await pool.query('SELECT id, label FROM roles ORDER BY label');
+        // Normalize to { id, name, label } where name is the role id expected by frontend
+        const out = rows.map(r => ({ id: r.id, name: r.id, label: r.label }));
+        res.json(out);
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Błąd pobierania ról' });
+    }
+});
+
+// POST create role
+app.post('/api/roles', async (req, res) => {
+    const { id, label } = req.body;
+    if (!id || !label) return res.status(400).json({ error: 'Id i label są wymagane' });
+    try {
+        await pool.execute('INSERT INTO roles (id, label) VALUES (?, ?)', [id, label]);
+        res.json({ success: true });
+    } catch (err) {
+        console.error(err);
+        if (err && err.code === 'ER_DUP_ENTRY') return res.status(409).json({ error: 'Rola już istnieje' });
+        res.status(500).json({ error: 'Błąd tworzenia roli' });
+    }
+});
+
+// DELETE role
+app.delete('/api/roles/:id', async (req, res) => {
+    const { id } = req.params;
+    try {
+        await pool.execute('DELETE FROM roles WHERE id = ?', [id]);
+        res.json({ success: true });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Błąd usuwania roli' });
+    }
+});
+
+// GET sub-roles
+app.get('/api/sub-roles', async (req, res) => {
+    try {
+        const [rows] = await pool.query('SELECT id, name FROM sub_roles ORDER BY id');
+        res.json(rows);
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Błąd pobierania oddziałów' });
+    }
+});
+
+// POST create sub-role
+app.post('/api/sub-roles', async (req, res) => {
+    const { id, name } = req.body;
+    if (!id || !name) return res.status(400).json({ error: 'Id i name są wymagane' });
+    try {
+        await pool.execute('INSERT INTO sub_roles (id, name) VALUES (?, ?)', [id, name]);
+        res.json({ success: true });
+    } catch (err) {
+        console.error(err);
+        if (err && err.code === 'ER_DUP_ENTRY') return res.status(409).json({ error: 'Oddział już istnieje' });
+        res.status(500).json({ error: 'Błąd tworzenia oddziału' });
+    }
+});
+
+// DELETE sub-role
+app.delete('/api/sub-roles/:id', async (req, res) => {
+    const { id } = req.params;
+    try {
+        await pool.execute('DELETE FROM sub_roles WHERE id = ?', [id]);
+        res.json({ success: true });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Błąd usuwania oddziału' });
+    }
+});
+
+// ==========================
+// Login & Permissions
+// ==========================
+
+// POST login
+app.post('/api/login', async (req, res) => {
+    const { username, password } = req.body;
+    if (!username || !password) return res.status(400).json({ error: 'Nazwa użytkownika i hasło są wymagane' });
+    try {
+        const [rows] = await pool.query('SELECT * FROM users WHERE username = ? LIMIT 1', [username]);
+        if (!rows || rows.length === 0) return res.status(401).json({ error: 'Nieprawidłowe dane logowania' });
+        const user = rows[0];
+        const stored = user.password || user.pass || '';
+        let ok = false;
+        try { ok = await bcrypt.compare(password, stored); } catch (e) { ok = (password === stored); }
+        if (!ok) {
+            // fallback: plain equality
+            if (password !== stored) return res.status(401).json({ error: 'Nieprawidłowe dane logowania' });
+        }
+        const role = user.role || user.role_id || user.roleId || 'user';
+        const subRole = user.sub_role || user.subRole || 'AGRO';
+        const token = jwt.sign({ id: user.id, username: user.username, role, subRole }, JWT_SECRET, { expiresIn: '8h' });
+        // sanitize user payload
+        const outUser = {
+            id: user.id,
+            username: user.username,
+            role,
+            subRole,
+            pin: user.pin || null,
+            isTemporaryPassword: user.is_temporary_password || 0
+        };
+        res.json({ token, user: outUser });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Błąd autoryzacji' });
+    }
+});
+
+// GET permissions for user (role + individual)
+app.get('/api/permissions/:userId', async (req, res) => {
+    const { userId } = req.params;
+    try {
+        // role permissions
+        const [[u]] = await pool.query('SELECT role, role_id FROM users WHERE id = ? LIMIT 1', [userId]);
+        const roleId = (u && (u.role || u.role_id)) || null;
+        const permissionsSet = new Set();
+        if (roleId) {
+            const [rp] = await pool.query('SELECT permission FROM role_permissions WHERE role_id = ?', [roleId]);
+            for (const r of rp) permissionsSet.add(r.permission);
+        }
+        // individual permissions
+        const [up] = await pool.query('SELECT permission FROM user_permissions WHERE user_id = ?', [userId]);
+        for (const p of up) permissionsSet.add(p.permission);
+        res.json({ permissions: Array.from(permissionsSet) });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Błąd pobierania uprawnień' });
+    }
+});
+
+// POST user-permissions (replace existing)
+app.post('/api/user-permissions', async (req, res) => {
+    const { userId, permissions } = req.body;
+    if (!userId || !Array.isArray(permissions)) return res.status(400).json({ error: 'userId i permissions są wymagane' });
+    try {
+        await pool.execute('DELETE FROM user_permissions WHERE user_id = ?', [userId]);
+        for (const perm of permissions) {
+            await pool.execute('INSERT INTO user_permissions (user_id, permission, created_at) VALUES (?, ?, NOW())', [userId, perm]);
+        }
+        res.json({ success: true });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Błąd zapisu uprawnień użytkownika' });
+    }
+});
+
+// GET user-permissions
+app.get('/api/user-permissions/:userId', async (req, res) => {
+    const { userId } = req.params;
+    try {
+        const [rows] = await pool.query('SELECT permission FROM user_permissions WHERE user_id = ?', [userId]);
+        res.json({ permissions: rows.map(r => r.permission) });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Błąd pobierania uprawnień' });
     }
 });
 
