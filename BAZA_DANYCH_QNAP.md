@@ -29,7 +29,7 @@ DB_NAME=MleczDroga
 Plik `.env.local` zawiera zmienne dla frontendu (Vite):
 
 ```env
-VITE_API_URL=http://localhost:5000/api
+VITE_API_URL=http://localhost:5001/api
 ```
 
 **Lokalizacja:** `/workspaces/Mleczna-droga/.env.local`
@@ -54,7 +54,7 @@ Backend automatycznie czyta zmienne z `.env`:
 Frontend czyta zmienną `VITE_API_URL` w `constants.ts`:
 
 ```typescript
-export const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+export const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001/api';
 ```
 
 ## Uruchamianie
