@@ -76,6 +76,16 @@ async function initTables() {
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE utf8mb4_unicode_ci;
         `);
 
+        // Ensure inventory_sessions uses InnoDB and correct collation —
+        // sometimes existing tables were created with MyISAM and then
+        // adding foreign keys fails with errno 150. Convert if needed.
+        try {
+            await pool.execute("ALTER TABLE inventory_sessions ENGINE=InnoDB");
+            await pool.execute("ALTER TABLE inventory_sessions CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+        } catch (e) {
+            console.warn('⚠️ Nie udało się skonwertować inventory_sessions do InnoDB:', e.message || e);
+        }
+
         await pool.execute(`
             CREATE TABLE IF NOT EXISTS inventory_snapshots (
                 id INT AUTO_INCREMENT PRIMARY KEY,

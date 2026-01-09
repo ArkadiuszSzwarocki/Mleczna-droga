@@ -15,7 +15,7 @@ Baza: MleczDroga
 Plik `.env` w katalogu głównym zawiera zmienne środowiskowe dla backendu:
 
 ```env
-PORT=5000
+PORT=5001
 DB_HOST=filipinka.myqnapcloud.com
 DB_PORT=3307
 DB_USER=rootMlecznaDroga
@@ -36,7 +36,7 @@ VITE_API_URL=http://localhost:5000/api
 
 **Dla połączenia z zdalnym QNAP zmień na:**
 ```env
-VITE_API_URL=http://filipinka.myqnapcloud.com:5000/api
+VITE_API_URL=http://filipinka.myqnapcloud.com:5001/api
 ```
 
 ## Zmienne Środowiskowe
