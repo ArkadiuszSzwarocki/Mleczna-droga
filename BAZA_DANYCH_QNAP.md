@@ -78,7 +78,7 @@ npm run dev
 
 ### Health Check (backend)
 ```bash
-curl http://localhost:5000/api/health
+curl http://localhost:5001/api/health
 ```
 
 Prawidłowa odpowiedź:
@@ -97,7 +97,7 @@ Prawidłowa odpowiedź:
 1. **Backend** - zostaw domyślnie na localhost (domyślnie w `.env`)
 2. **Frontend** - zmień `.env.local`:
 ```env
-VITE_API_URL=http://localhost:5000/api
+VITE_API_URL=http://localhost:5001/api
 ```
 
 ### Dla połączenia z QNAP:
@@ -107,7 +107,7 @@ DB_HOST=filipinka.myqnapcloud.com
 ```
 2. **Frontend** - zmień `.env.local`:
 ```env
-VITE_API_URL=http://filipinka.myqnapcloud.com:5000/api
+VITE_API_URL=http://filipinka.myqnapcloud.com:5001/api
 ```
 
 ## Bezpieczeństwo
@@ -124,7 +124,7 @@ Dodaj `.env` do `.gitignore`:
 ## Troubleshooting
 
 ### Błąd: "connect ECONNREFUSED"
-- Sprawdź czy backend jest uruchomiony na porcie 5000
+- Sprawdź czy backend jest uruchomiony na porcie 5001
 - Sprawdź czy QNAP jest dostępny (ping filipinka.myqnapcloud.com)
 - Sprawdź czy dane logowania są prawidłowe
 
@@ -150,7 +150,7 @@ Dodaj `.env` do `.gitignore`:
 ┌─────────────────────┐
 │  Backend (Node.js)  │
 │  server.js          │
-│  Port: 5000         │
+│  Port: 5001         │
 └──────────┬──────────┘
            │
            │ TCP/IP
@@ -160,5 +160,26 @@ Dodaj `.env` do `.gitignore`:
 │ 3307 (MySQL API)    │
 │ filipinka.myqnap... │
 └─────────────────────┘
+```
+
+## Zapytania do Bazy Danych
+
+### Przykładowe zapytania SQL
+```sql
+SELECT TABLE_NAME, ENGINE, TABLE_COLLATION
+FROM information_schema.TABLES
+WHERE TABLE_SCHEMA='MleczDroga'
+  AND TABLE_NAME IN ('inventory_sessions','inventory_snapshots','inventory_scans');
+```
+
+### Tworzenie kopii zapasowej tabeli `inventory_sessions`
+```sql
+CREATE TABLE inventory_sessions_backup LIKE inventory_sessions;
+INSERT INTO inventory_sessions_backup SELECT * FROM inventory_sessions;
+```
+
+### Zmiana silnika i kodowania tabeli `inventory_sessions`
+```sql
+ALTER TABLE inventory_sessions ENGINE=InnoDB, CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 ```
 
