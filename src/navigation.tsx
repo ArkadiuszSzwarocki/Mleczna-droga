@@ -115,7 +115,7 @@ export const getNavItemsDefinition = (
         subItems: [
             // 'Planowanie Dostaw' usunięte — korzystamy z widoku 'Przyjęcia' w sekcji Magazyn
             { key: 'view-internal-transfers', view: View.InternalTransfers, label: 'Transfery OSiP', icon: React.createElement(ArrowLeftRightIcon, { className: "h-4 w-4 opacity-70" }), permission: Permission.MANAGE_INTERNAL_TRANSFERS },
-            { key: 'view-dispatch-planning', view: View.Logistics, label: 'Zlecenia Wydania', icon: React.createElement(TruckIcon, { className: "h-4 w-4 opacity-70" }), permission: Permission.PLAN_DISPATCH_ORDERS },
+            // 'Zlecenia Wydania' przeniesione do 'Realizacja Wydań' w sekcji Magazyn
             { key: 'view-agro-planning', view: View.ProductionPlanningAgro, label: 'Harmonogram AGRO', permission: Permission.PLAN_PRODUCTION_AGRO },
             { key: 'view-psd-planning', view: View.ProductionPlanning2, label: 'Harmonogram PSD', permission: Permission.PLAN_PRODUCTION_PSD },
             { key: 'view-mixing-planner', view: View.MIXING_PLANNER, label: 'Planowanie Miksowania', permission: Permission.PLAN_MIXING },
