@@ -8,7 +8,7 @@ export default defineConfig({
     port: 5178,
     proxy: {
       '/api': {
-        target: 'http://filipinka.myqnapcloud.com',
+        target: 'http://192.168.0.18:5001/',
         changeOrigin: true,
       }
     }
