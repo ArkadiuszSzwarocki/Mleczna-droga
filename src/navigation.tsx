@@ -113,7 +113,7 @@ export const getNavItemsDefinition = (
         defaultOpen: false,
         hidden: !isAdmin && (isPsdOperator || isNotAgro),
         subItems: [
-            { key: 'view-delivery-planning', view: View.DeliveryList, label: 'Planowanie Dostaw', permission: Permission.CREATE_DELIVERY },
+            // 'Planowanie Dostaw' usunięte — korzystamy z widoku 'Przyjęcia' w sekcji Magazyn
             { key: 'view-internal-transfers', view: View.InternalTransfers, label: 'Transfery OSiP', icon: React.createElement(ArrowLeftRightIcon, { className: "h-4 w-4 opacity-70" }), permission: Permission.MANAGE_INTERNAL_TRANSFERS },
             { key: 'view-dispatch-planning', view: View.Logistics, label: 'Zlecenia Wydania', icon: React.createElement(TruckIcon, { className: "h-4 w-4 opacity-70" }), permission: Permission.PLAN_DISPATCH_ORDERS },
             { key: 'view-agro-planning', view: View.ProductionPlanningAgro, label: 'Harmonogram AGRO', permission: Permission.PLAN_PRODUCTION_AGRO },
