@@ -113,6 +113,17 @@ app.get('/api/deliveries', async (req, res) => {
     }
 });
 
+// GET: Pobierz surowce (raw materials / palety)
+app.get('/api/raw-materials', async (req, res) => {
+    try {
+        const [rows] = await pool.query(`SELECT id, nrPalety, nazwa, dataProdukcji, dataPrzydatnosci, initialWeight, currentWeight, isBlocked, blockReason, currentLocation, batchNumber, packageForm, unit, labAnalysisNotes, createdAt, updatedAt FROM raw_materials ORDER BY createdAt DESC`);
+        res.json(rows);
+    } catch (err) {
+        console.error('Błąd pobierania raw_materials:', err);
+        res.status(500).json({ error: 'Błąd pobierania surowców z bazy' });
+    }
+});
+
 // POST: Tworzenie nowej dostawy
 app.post('/api/deliveries', async (req, res) => {
     const delivery = req.body;
